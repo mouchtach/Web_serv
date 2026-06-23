@@ -1,12 +1,16 @@
 #pragma once
 #include <string>
-#include "request.hpp"
+#include <fstream>
+#include <map>
+    #include <iostream>
+
+#include <sstream>
 #include "../config/Config.hpp"
 
 class Response {
 private:
     std::string _rawResponse;
-
+    Config _config;
     std::string _version;
     std::string _body;
     size_t _contentLength;
@@ -17,7 +21,67 @@ private:
 
 public:
     Response() : _rawResponse("") {};
+    void setConfig(const Config &config) { _config = config; }
 
+    std::string statusCodeString(int code) {
+        switch (code) {
+            case 200: return "OK";
+            case 301: return "Moved Permanently";
+            case 400: return "Bad Request";
+            case 403: return "Forbidden";
+            case 404: return "Not Found";
+            case 500: return "Internal Server Error";
+            case 501: return "Not Implemented";
+            case 505: return "HTTP Version Not Supported";
+            default: return "Unknown Status";
+        }
+    }
+    
+    std::string buildErrorPage(int code, std::string message)
+    {
+        std::string codeStr = std::to_string(code);
+        std::string html =
+            "<!DOCTYPE html>\n"
+            "<html>\n"
+            "<head><title>" + codeStr + " " + message + "</title></head>\n"
+            "<body>\n"
+            "<h1>" + codeStr + " " + message + "</h1>\n"
+            "<hr>\n"
+            "<p>webserv</p>\n"
+            "</body>\n"
+            "</html>\n";
+        return html;
+    }
+
+
+    std::string getErrorBody(int code) {
+        std::map<int, std::string> errorPages = _config.getErrorPages();
+        if (errorPages.find(code) != errorPages.end()) {
+            std::string path = errorPages[code];
+            std::ifstream file(path.c_str());
+            if (file.is_open()) {
+                std::ostringstream ss;
+                ss << file.rdbuf();
+                return ss.str();
+            }
+        }
+        return buildErrorPage(code, statusCodeString(code));
+    }
+
+    void sendError(int code)
+    {
+        std::string body = getErrorBody(code);
+        _statusCode = std::to_string(code);
+        _statusMessage = statusCodeString(code);
+        _version = "HTTP/1.1";
+        _header["Content-Length"] = std::to_string(body.size());
+        _header["Content-Type"] = "text/html";
+        _body = body;
+        buildResponse();
+
+        // std::cout << "Sending error response:\n" << _rawResponse;
+
+    }
 
     void responseprocces();
     

@@ -95,7 +95,8 @@ void Webserv::Start() {
       } else if (_pollfds[i].revents & POLLOUT) {
         Client *client = getClientByFd(_pollfds[i].fd);
         if (client) {
-          const std::string &response = client->getResponse().getRawResponse();
+          const std::string &response = client->getRawResponse();
+          std::cout << "response to send: " << response << std::endl;
           std::cout << "Sending response to client fd " << client->getFd()
                     << ": " << response << std::endl;
           ssize_t bytesSent =

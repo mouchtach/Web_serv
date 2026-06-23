@@ -17,7 +17,6 @@ private:
   Response        _response;
   LocationConfig  _targetLocation;
 
-
 public:
 
   Client(int fd, const Config &config);
@@ -33,6 +32,7 @@ public:
   }
   const Response &getResponse() const { return _response; }
   void processResponse();
+  void redirection(const std::string &newLocation);
   void handelGET();
   void handelPOST() {
     // Implement POST request handling logic here

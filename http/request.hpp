@@ -29,6 +29,8 @@ private:
     
 public:
     bool _complete;
+    void setComplete(bool complete) { _complete = complete; }
+    bool isComplete() const { return _complete; }
     Request() : _rawRequest("") {};
     void appendrequest(const std::string& data) {
         _rawRequest.append(data);
@@ -36,6 +38,7 @@ public:
     // void appendbody(const std::string& data) {
     //     _body.append(data);
     // }
+    
     HttpMethod getMethod() const {
         return _method;
     };
