@@ -10,17 +10,19 @@ LocationConfig::LocationConfig() : _path("") {}
 void LocationConfig::setPath(const std::string &path) { _path = path; }
 
 void LocationConfig::setReturn(const std::vector<std::string>& tokens, size_t* i) {
+
 //  std::cout << "token : " << tokens[*i] << std::endl;
-    // _return.first = std::atoi(tokens[*i].c_str());
-    // // if (_return.first < 300 || _return.first > 399)
-    // //     throw std::runtime_error("Location: return code must be 3xx, got "+ tokens[*i]);
-    // ++(*i);
-    // if (*i >= tokens.size())
-    //     throw std::runtime_error("Location: return missing URL after code "+ tokens[*i-1]);
+    _return.first = std::atoi(tokens[*i].c_str());
+    // if (_return.first < 300 || _return.first > 399)
+    //     throw std::runtime_error("Location: return code must be 3xx, got "+ tokens[*i]);
+    ++(*i);
+    if (*i >= tokens.size())
+        throw std::runtime_error("Location: return missing URL after code "+ tokens[*i-1]);
     _return.second = stripSemicolon(tokens[*i]);
     if (_return.second.empty())
         throw std::runtime_error("Location: return URL is empty after code "+ tokens[*i-1]);
     ++(*i);
+    redc = 1;
 }
 
 #include <iostream>

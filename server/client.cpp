@@ -268,9 +268,9 @@ void Client::sendFile(const std::string &filepath) {
   buildResponse();
 }
 
-void Client::redirection(const std::string &newLocation) {
+void Client::redirection(int statuscode, const std::string &newLocation) {
   std::cout << "Redirecting to: " << newLocation << std::endl;
-  setStatusCode("301");
+  setStatusCode(std::to_string(statuscode));
   setversion("HTTP/1.1");
   setStatusMessage("Moved Permanently");
   setHeader("Location", newLocation);
@@ -293,14 +293,18 @@ void Client::handelGET() {
 
   findTargetLocation();
 
+
   std::string uri = getUri();
   std::string root = _targetLocation.getRoot();
   std::string index = _targetLocation.getIndex();
   std::string locationPath = _targetLocation.getPath();
-
   std::string uriSuffix;
   std::string pathToAppend;
 
+  if(_targetLocation.hasredirection()){
+    redirection(_targetLocation.getReturn().first, root + _targetLocation.getReturn().second);
+    return;
+  }
   if (_targetLocation.isRootOverridden())
   {
       uriSuffix = uri.substr(locationPath.length());
@@ -310,31 +314,41 @@ void Client::handelGET() {
   {
       pathToAppend = uri;
   }
-
   std::string target = appendPath(root, pathToAppend);
-
-
   struct stat statBuf;
+
   std::cout << "Root: " << root << std::endl;
   std::cout << "URI: " << uri << std::endl;
   std::cout << "Location Path: " << locationPath << std::endl;
   std::cout << "URI Suffix: " << uriSuffix << std::endl;
   std::cout << "Target path: " << target << std::endl;
 
+  // if ()
+
   if (stat(target.c_str(), &statBuf) == -1) {
+    std::cout << "t1\n";
     sendError(404);
     return;
   }
 
   if (S_ISREG(statBuf.st_mode)) {
-      sendFile(target);
+    std::cout << "file \n";
+      if(_targetLocation.isMethodAllowed(GET))
+        sendFile(target);
+      else 
+        sendError(405);
       return;
 
   } else if (S_ISDIR(statBuf.st_mode)) {
-
+    std::cout << "dirc\n";
     if (uri[uri.length() - 1] != '/') {
-      redirection(uri + "/");
+      redirection(301, uri + "/");
       return;
+    }
+    if(!_targetLocation.isMethodAllowed(GET))
+    {
+        sendError(405);
+        return;
     }
     std::string indexPath = target + "/" + index;
     struct stat indexStat;

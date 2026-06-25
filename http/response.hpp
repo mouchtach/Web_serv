@@ -84,6 +84,18 @@ public:
     }
 
     void responseprocces();
+
+    #include <ctime>
+
+    std::string getCurrentDate()
+    {
+        char buffer[100];
+
+        std::time_t now = std::time(NULL);
+        std::tm* gmt = std::gmtime(&now);
+        std::strftime(buffer, sizeof(buffer), "%a, %d %b %Y %H:%M:%S GMT", gmt);
+        return buffer;
+    }
     
     void setRawResponse(const std::string& response) {
         _rawResponse = response;
@@ -107,6 +119,10 @@ public:
         _version = version;
     }
     void buildResponse() {
+        // add la date
+        // add server
+        _header["Date"] =  getCurrentDate();
+        _header["Server"] = "webserv/1.0";
         _rawResponse = _version + " " + _statusCode + " " + _statusMessage + "\r\n";
         for (std::map<std::string, std::string>::const_iterator it = _header.begin(); it != _header.end(); ++it) {
             _rawResponse += it->first + ": " + it->second + "\r\n";

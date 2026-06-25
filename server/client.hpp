@@ -32,7 +32,7 @@ public:
   }
   const Response &getResponse() const { return _response; }
   void processResponse();
-  void redirection(const std::string &newLocation);
+  void redirection(int statuscode, const std::string &newLocation);
   void handelGET();
   void handelPOST() {
     // Implement POST request handling logic here
