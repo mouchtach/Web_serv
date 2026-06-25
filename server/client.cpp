@@ -59,6 +59,7 @@ std::string Client::buildAutoIndex(const std::string &dirPath, const std::string
 
   while ((entry = readdir(dir)) != NULL) {
     std::string name = entry->d_name;
+
     if (name == ".")
       continue;
     std::string fullPath = dirPath;
@@ -109,7 +110,6 @@ std::string Client::buildAutoIndex(const std::string &dirPath, const std::string
        << "      <th>Size</th>\n"
        << "    </tr>\n";
 
-  // 5. Parent directory link (except if we're at root)
   if (uri != "/") {
     html << "    <tr>\n"
          << "      <td><a href=\"../\">../</a></td>\n"
@@ -118,7 +118,6 @@ std::string Client::buildAutoIndex(const std::string &dirPath, const std::string
          << "    </tr>\n";
   }
 
-  // 6. Directories first
   for (size_t i = 0; i < dirs.size(); i++) {
     std::string fullPath = dirPath;
     if (fullPath[fullPath.size() - 1] != '/')
@@ -137,7 +136,6 @@ std::string Client::buildAutoIndex(const std::string &dirPath, const std::string
          << "    </tr>\n";
   }
 
-  // 7. Files
   for (size_t i = 0; i < files.size(); i++) {
     std::string fullPath = dirPath;
     if (fullPath[fullPath.size() - 1] != '/')
@@ -210,6 +208,46 @@ std::string readFile(const std::string &filepath) {
   return content;
   // ...
 }
+std::string getMimeType(const std::string& path)
+{
+    size_t pos = path.find_last_of('.');
+    if (pos == std::string::npos)
+        return "application/octet-stream";
+
+    std::string ext = path.substr(pos);
+
+    // Text
+    if (ext == ".html" || ext == ".htm")
+        return "text/html";
+    if (ext == ".css")
+        return "text/css";
+    if (ext == ".txt")
+        return "text/plain";
+
+    // Images
+    if (ext == ".jpg" || ext == ".jpeg")
+        return "image/jpeg";
+    if (ext == ".png")
+        return "image/png";
+    if (ext == ".gif")
+        return "image/gif";
+
+    // Documents
+    if (ext == ".pdf")
+        return "application/pdf";
+
+    // Audio
+    if (ext == ".mp3")
+        return "audio/mpeg";
+
+    // Video
+    if (ext == ".mp4")
+        return "video/mp4";
+    if (ext == ".mov")
+        return "video/quicktime";
+
+    return "application/octet-stream";
+}
 
 void Client::sendFile(const std::string &filepath) {
   std::cout << "Sending file: " << filepath << std::endl;
@@ -224,7 +262,7 @@ void Client::sendFile(const std::string &filepath) {
   setversion("HTTP/1.1");
   setStatusMessage("OK");
   setHeader("Content-Length", std::to_string(content.size()));
-  setHeader("Content-Type", "text/html"); // You may want to determine
+  setHeader("Content-Type", getMimeType(filepath)); // You may want to determine
   setBody(content);
   std::cout<< "Response to send:\n" << getRawResponse() << std::endl;
   buildResponse();
@@ -240,27 +278,47 @@ void Client::redirection(const std::string &newLocation) {
   buildResponse();
 }
 
-
+std::string appendPath(const std::string& root, const std::string& path)
+{
+    if (root.empty())
+        return path;
+    if (root[root.size() - 1] == '/' && path[0] == '/')
+        return root + path.substr(1);
+    if (root[root.size() - 1] != '/' && path[0] != '/')
+        return root + "/" + path;
+    return root + path;
+}
 
 void Client::handelGET() {
 
   findTargetLocation();
+
   std::string uri = getUri();
   std::string root = _targetLocation.getRoot();
   std::string index = _targetLocation.getIndex();
-  std::string locationPath = _targetLocation.getPath();      // "/docs"
-  std::string uriSuffix = uri.substr(locationPath.length()); // "/rrrt"
-  std::string target = root + uriSuffix; // "./www/docs/rrrt"
+  std::string locationPath = _targetLocation.getPath();
 
-  if (!uriSuffix.empty() && uriSuffix[0] != '/' &&
-      root[root.length() - 1] != '/')
-    target = root + "/" + uriSuffix;
-  else if (!uriSuffix.empty() && uriSuffix[0] == '/' &&
-           root[root.length() - 1] == '/')
-    target = root + uriSuffix.substr(1);
+  std::string uriSuffix;
+  std::string pathToAppend;
+
+  if (_targetLocation.isRootOverridden())
+  {
+      uriSuffix = uri.substr(locationPath.length());
+      pathToAppend = uriSuffix;
+  }
   else
-    target = root + uriSuffix;
+  {
+      pathToAppend = uri;
+  }
+
+  std::string target = appendPath(root, pathToAppend);
+
+
   struct stat statBuf;
+  std::cout << "Root: " << root << std::endl;
+  std::cout << "URI: " << uri << std::endl;
+  std::cout << "Location Path: " << locationPath << std::endl;
+  std::cout << "URI Suffix: " << uriSuffix << std::endl;
   std::cout << "Target path: " << target << std::endl;
 
   if (stat(target.c_str(), &statBuf) == -1) {

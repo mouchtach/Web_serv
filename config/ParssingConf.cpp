@@ -207,9 +207,9 @@ void LocationConfig::override(const std::vector<std::string> &tokens, size_t &i,
     std::string directive = tokens[i++];
     if (directive == "root") {
       if (i >= tokens.size())
-
         error("location '" + path + "': 'root' missing value");
       setRoot(tokens[i++]);
+      rootOverridden = true;
     } else if (directive == "index") {
       if (i >= tokens.size())
         error("location '" + path + "': 'index' missing value");
