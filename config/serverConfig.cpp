@@ -61,7 +61,7 @@ serverConfig::~serverConfig() {
 //   if (val < 1 || val > 65535)
 //     throw std::runtime_error("Server: port out of range (1-65535), got " + p);
 //   _port = val;
-//   std::cout << "Port set to: " << _port << std::endl;
+//   // std::cout  << "Port set to: " << _port << std::endl;
 // }
 
 // void serverConfig::setServerName(const std::string &name) {
@@ -131,7 +131,7 @@ void serverConfig::addErrorPage(const std::string &code, const std::string &path
 
 void serverConfig::setMethods(const std::vector<std::string> &methods) {
   // _methods.clear();
-  // std::cout << "methods test \n";
+  // // std::cout  << "methods test \n";
   for (size_t i = 0; i < methods.size(); ++i) {
     std::string m = methods[i];
     if (i == methods.size() - 1 && !m.empty()) {
@@ -140,7 +140,7 @@ void serverConfig::setMethods(const std::vector<std::string> &methods) {
     if (m != "GET" && m != "POST" && m != "DELETE") {
       throw std::runtime_error("Server: invalid method '" + m + "'");
     }
-    // std::cout << "Adding method: " << m << std::endl;
+    // // std::cout  << "Adding method: " << m << std::endl;
     _methods.push_back(m);
   }
 }

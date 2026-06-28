@@ -8,6 +8,7 @@
 class Webserv
 {
 private:
+    std::map<int, Client> _clientMap;
     std::vector<Server> _servers;
     std::vector<pollfd> _pollfds;
     std::vector<Client> _clients;

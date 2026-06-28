@@ -1,6 +1,4 @@
 #pragma once
-
-
 #include <string>
 #include <map>
 
@@ -28,6 +26,8 @@ private:
     void parseBody(const std::string& bodyPart);
     
 public:
+
+
     bool _complete;
     void setComplete(bool complete) { _complete = complete; }
     bool isComplete() const { return _complete; }
@@ -35,10 +35,7 @@ public:
     void appendrequest(const std::string& data) {
         _rawRequest.append(data);
     }
-    // void appendbody(const std::string& data) {
-    //     _body.append(data);
-    // }
-    
+
     HttpMethod getMethod() const {
         return _method;
     };

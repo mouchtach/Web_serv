@@ -1,4 +1,0 @@
-GET /images/hh HTTP/1.1
-Host: localhost
-
-123456

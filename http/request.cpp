@@ -18,12 +18,12 @@ void Request::parseRequestLine(const std::string& line)
     size_t pos1 = line.find(' ');
 
     if (pos1 == std::string::npos)
-        throw std::runtime_error("400");
+        throw 400;
 
     size_t pos2 = line.find(' ', pos1 + 1);
 
     if (pos2 == std::string::npos)
-        throw std::runtime_error("400");
+        throw 400;
 
     std::string method =line.substr(0, pos1);
 
@@ -34,11 +34,11 @@ void Request::parseRequestLine(const std::string& line)
     _method = stringToMethod(method);
 
     if (_method == UNKNOWN)
-        throw std::runtime_error("501");
-    if (_version != "HTTP/1.0" && _version != "HTTP/1.1")
-        throw std::runtime_error("505");
+        throw 400;
+    if (_version != "HTTP/1.1" && _version != "HTTP/1.0")
+        throw 400;
     if (_uri.empty())
-        throw std::runtime_error("400");
+        throw 400;
 }
 
 bool Request::validkey(const std::string& key) const
@@ -63,7 +63,7 @@ void Request::parseHeaders(const std::string& headersPart)
 
         size_t colon = line.find(':');
         if (colon == std::string::npos)
-            throw std::runtime_error("400");
+            throw 400;
 
         std::string key = line.substr(0, colon);
         // i want changer the key to lowercase
@@ -81,7 +81,7 @@ void Request::parseHeaders(const std::string& headersPart)
             _headers[key] = value;
         }
         else
-            throw std::runtime_error("400");
+            throw 400;
         start = end + 2;
     }
 }
@@ -91,20 +91,7 @@ void Request::parseBody(const std::string& bodyPart)
     _body = bodyPart;
 }
 
-#include <iostream>
-void Request::displayrequest()
-{
-    std::cout << "Method: " << _method << std::endl;
-    std::cout << "URI: " << _uri << std::endl;
-    std::cout << "Version: " << _version << std::endl;
-    std::cout << "Headers:" << std::endl;
-    for (std::map<std::string, std::string>::const_iterator it = _headers.begin(); it != _headers.end(); ++it)
-    {
-        std::cout << it->first << ": " << it->second << std::endl;
-    }
-    if (!_body.empty())
-        std::cout << "Body: " << _body << std::endl;
-}
+
 
 bool Request::isheaderComplete()
 {
@@ -123,18 +110,16 @@ bool Request::isheaderComplete()
 
 void Request::parseRequest()
 {
-    std::cout << "Parsing request..." << std::endl;
     size_t headerEnd = _rawRequest.find("\r\n\r\n");
     if (headerEnd == std::string::npos)
-        throw std::runtime_error("Bad Request");
+        throw 400;
     std::string headerPart = _rawRequest.substr(0, headerEnd);
     size_t firstLineEnd = headerPart.find("\r\n");
     if (firstLineEnd == std::string::npos)
-        throw std::runtime_error("Bad Request");
+        throw 400;
     parseRequestLine(headerPart.substr(0, firstLineEnd));
     parseHeaders(headerPart.substr(firstLineEnd + 2));
     _rawRequest.erase(0, headerEnd + 4);
-    std::cout << "Request line : " << _method << " " << _uri << " " << _version << std::endl;
 }
 
 bool Request::isRequestComplete()
@@ -144,12 +129,12 @@ bool Request::isRequestComplete()
         if (_rawRequest.size() >= getContentLength())
         {
             _body = _rawRequest.substr(0, getContentLength());
-            std::cout << "Request body complete based on Content-Length header." << std::endl;
+            // std::cout  << "Request body complete based on Content-Length header." << std::endl;
             return true;
         }
         else 
         {
-            std::cout << "Request body incomplete. Received " << _rawRequest.size() << " bytes, expected " << getContentLength() << " bytes." << std::endl;
+            // std::cout  << "Request body incomplete. Received " << _rawRequest.size() << " bytes, expected " << getContentLength() << " bytes." << std::endl;
             return false;
         }
     }

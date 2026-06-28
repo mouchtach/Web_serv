@@ -18,16 +18,30 @@ bool Webserv::is_server(int fd) const {
 
 void Webserv::setupServers(const std::string &configFile) {
   ParssingConf parser;
-  parser.parseConfig(configFile);
+  try {
+    std::cout << "\033[32mParsing config file: " << configFile << "\033[0m" << std::endl;
+    parser.parseConfig(configFile);
+  } catch (const std::exception &e) {
+    std::cerr << "\033[31mError parsing config file: " << e.what() << "\033[0m" << std::endl;
+    throw;
+  }
+
+  //in green message setup servers
+  std::cout << "\033[32mSetting up servers...\033[0m" << std::endl;
   const std::vector<Config> &configs = parser.getConfigs();
 
   for (size_t i = 0; i < configs.size(); ++i) {
-    Server server(configs[i]);
-    _servers.push_back(server);
-    pollfd pfd;
-    pfd.fd = server.getFd();
-    pfd.events = POLLIN;
-    _pollfds.push_back(pfd);
+    try {
+      Server server(configs[i]);
+      _servers.push_back(server);
+      pollfd pfd;
+      pfd.fd = server.getFd();
+      pfd.events = POLLIN;
+      _pollfds.push_back(pfd);
+    } catch (const std::exception &e) {
+      std::cerr << "\033[31mError setting up server on port " << configs[i].getPort() << ": " << e.what() << "\033[0m" << std::endl;
+      throw;  
+    }
   }
 }
 
@@ -37,81 +51,89 @@ void Webserv::newConnection(int serverFd) {
     throw std::runtime_error("Failed to accept new connection");
   Client client(clientFd, getServerByFd(serverFd)->getConfig());
   _clients.push_back(client);
+  _clientMap[clientFd] = client;
   pollfd pfd;
   pfd.fd = clientFd;
   pfd.events = POLLIN;
   _pollfds.push_back(pfd);
-  std::cout << "New connection accepted: client fd " << clientFd
-            << " on server fd " << serverFd << std::endl;
+  std::cout << "\033[32mNew connection accepted: client fd " << clientFd << " on server fd " << serverFd << "\033[0m" << std::endl;
 }
 
 void Webserv::readFromClient(int clientFd) {
   Client *client = getClientByFd(clientFd);
-  if (!client)
-    throw std::runtime_error("Client not found");
-  char buffer[4096];
-  ssize_t bytesRead = recv(clientFd, buffer, sizeof(buffer), 0);
-  if (bytesRead < 0)
-    throw std::runtime_error("Failed to read from client");
-  else if (bytesRead == 0) {
-    if (client->Request::isheaderComplete() &&
-        !client->Request::isRequestComplete())
-      std::cerr << "Client " << client->getFd()
-                << " closed with incomplete body (Content-Length mismatch)"
-                << std::endl;
-    removeClient(clientFd);
-    return;
-  }
-  client->Request::appendrequest(std::string(buffer, bytesRead));
-  if (client->Request::isheaderComplete()) {
-    if (client->Request::isRequestComplete()) {
-        std::cout << "Request complete for client fd " << clientFd << std::endl;
-      client->processResponse();
-      readyToSend(clientFd);
-      client->clear_rawRequest();
-    } else {
-      // Headers complete but body incomplete - wait for more data or client to
-      // close
-      std::cout << "Headers complete but body not fully received for client fd "
-                << clientFd << std::endl;
+  try {
+    if (!client)
+      throw std::runtime_error("Client not found");
+    char buffer[4096];
+    ssize_t bytesRead = recv(clientFd, buffer, sizeof(buffer), 0);
+    if (bytesRead < 0)
+      throw std::runtime_error("Failed to read from client");
+    else if (bytesRead == 0) {
+      if (client->Request::isheaderComplete() && !client->Request::isRequestComplete())
+        throw std::runtime_error("Client closed connection before sending complete request body");
+      removeClient(clientFd);
       return;
     }
-  }
+    client->Request::appendrequest(std::string(buffer, bytesRead));
+    if (client->Request::isheaderComplete()) 
+    {
+      if (client->Request::isRequestComplete()) 
+      {
+        client->processResponse();
+        readyToSend(clientFd);
+      }
+      client->clear_rawRequest();
+    }
+    } catch (int &e) {
+        client->Response::sendError(e);
+        readyToSend(clientFd);
+        std::cerr << "\033[31mBad request from client fd " << clientFd << ": " << e << "\033[0m" << std::endl;
+        // removeClient(clientFd);
+    }
+    catch (const std::exception &e) {
+        std::cerr << "\033[31mError reading from client fd " << clientFd << ": " << e.what() << "\033[0m" << std::endl;
+        removeClient(clientFd);
+    }
 }
 
 void Webserv::Start() {
 
-  while (true) {
-    int ret = poll(_pollfds.data(), _pollfds.size(), -1); // Infinite wait
-    if (ret < 0) {
-      throw std::runtime_error("Poll failed");
-    }
-    for (size_t i = 0; i < _pollfds.size(); ++i) {
-      if (_pollfds[i].revents & POLLIN) {
-        if (is_server(_pollfds[i].fd))
-          newConnection(_pollfds[i].fd);
-        else
-          readFromClient(_pollfds[i].fd);
-      } else if (_pollfds[i].revents & POLLOUT) {
-        Client *client = getClientByFd(_pollfds[i].fd);
-        if (client) {
-          const std::string &response = client->getRawResponse();
-          std::cout << "response to send: " << response << std::endl;
-          std::cout << "Sending response to client fd " << client->getFd()
-                    << ": " << response << std::endl;
-          ssize_t bytesSent =
-              send(client->getFd(), response.c_str(), response.size(), 0);
-          if (bytesSent < 0) {
-            throw std::runtime_error("Failed to send response to client");
-          }
-          removeClient(client->getFd());
+    while (true) {
+        int ret = poll(_pollfds.data(), _pollfds.size(), -1); 
+        if (ret < 0) {
+            throw std::runtime_error("Poll failed");
         }
-      } else if (_pollfds[i].revents & (POLLERR | POLLHUP | POLLNVAL)) {
-        std::cout << "Error event on fd " << _pollfds[i].fd << std::endl;
-        // Handle error event
-      }
+        for (size_t i = 0; i < _pollfds.size(); ++i) 
+        {
+            if (_pollfds[i].revents & POLLIN) 
+            {
+                if (is_server(_pollfds[i].fd))
+                    newConnection(_pollfds[i].fd);
+                else
+                    readFromClient(_pollfds[i].fd);
+
+            } else if (_pollfds[i].revents & POLLOUT) 
+            {
+                try {
+                    Client *client = getClientByFd(_pollfds[i].fd);
+                    if (client) {
+                        const std::string &response = client->Response::getRawResponse();
+                        ssize_t bytesSent = send(_pollfds[i].fd, response.c_str(), response.size(), 0);
+                        if (bytesSent < 0) {
+                            throw std::runtime_error("Failed to send response to client");
+                        }
+                        removeClient(_pollfds[i].fd);
+                    }
+                } catch (const std::exception &e) {
+                    std::cerr << "\033[31mError sending response: " << e.what() << "\033[0m" << std::endl;
+                    removeClient(_pollfds[i].fd);
+                }
+            } else if (_pollfds[i].revents & (POLLERR | POLLHUP | POLLNVAL)) {
+                std::cerr << "\033[31mError on fd " << _pollfds[i].fd << ", closing connection\033[0m" << std::endl;
+                removeClient(_pollfds[i].fd);
+            }
+        }
     }
-  }
 }
 
 Server *Webserv::getServerByFd(int fd) {
@@ -124,10 +146,9 @@ Server *Webserv::getServerByFd(int fd) {
 }
 
 Client *Webserv::getClientByFd(int fd) {
-  for (size_t i = 0; i < _clients.size(); ++i) {
-    if (_clients[i].getFd() == fd) {
-      return &_clients[i];
-    }
+  std::map<int, Client>::iterator it = _clientMap.find(fd);
+  if (it != _clientMap.end()) {
+    return &(it->second);
   }
   return nullptr;
 }
@@ -142,13 +163,7 @@ pollfd *Webserv::getPollfdByFd(int fd) {
 }
 
 void Webserv::removeClient(int clientFd) {
-  for (std::vector<Client>::iterator it = _clients.begin();
-       it != _clients.end(); ++it) {
-    if (it->getFd() == clientFd) {
-      _clients.erase(it);
-      break;
-    }
-  }
+  _clientMap.erase(clientFd);
   for (std::vector<pollfd>::iterator it = _pollfds.begin();
        it != _pollfds.end(); ++it) {
     if (it->fd == clientFd) {
@@ -156,14 +171,15 @@ void Webserv::removeClient(int clientFd) {
       break;
     }
   }
+  std::cerr << "\033[31mClient fd " << clientFd << " disconnected and removed\033[0m" << std::endl;
   close(clientFd);
 }
 
 void Webserv::readyToSend(int clientFd) {
   pollfd *pfd = getPollfdByFd(clientFd);
   if (pfd) {
-    std::cout << "Ready to send response to client fd " << clientFd
-              << std::endl;
+    // std::cout << "Ready to send response to client fd " << clientFd
+    //           << std::endl;
     pfd->events = POLLOUT;
   }
 }

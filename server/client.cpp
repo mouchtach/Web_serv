@@ -178,7 +178,7 @@ void Client::findTargetLocation() {
   std::string uri = getUri();
 
   for (size_t i = 0; i < locations.size(); i++) {
-    // std::cout << "check location : " << locations[i].getPath() << std::endl;
+    // // std::cout  << "check location : " << locations[i].getPath() << std::endl;
     if (isMatch(uri, locations[i].getPath())) {
       if (_targetLocation.getPath().empty() ||
           locations[i].getPath().size() > _targetLocation.getPath().size()) {
@@ -186,92 +186,67 @@ void Client::findTargetLocation() {
       }
     }
   }
-  // std::cout << "check location : " << _targetLocation.getPath() << std::endl;
 }
 
 
 std::string readFile(const std::string &filepath) {
-  // Implement file reading logic here, e.g., open the file, read its contents
-  // into a string, and return it
   std::string content;
   std::ifstream file(filepath.c_str());
   if (!file.is_open()) {
-    std::cout << "Failed to open file: " << filepath << std::endl;
     return "";
   }
   std::ostringstream ss;
   ss << file.rdbuf();
   content = ss.str();
-  if (content.empty()) {
-    std::cout << "File is empty: " << filepath << std::endl;
-  }
   return content;
-  // ...
 }
 std::string getMimeType(const std::string& path)
 {
     size_t pos = path.find_last_of('.');
     if (pos == std::string::npos)
         return "application/octet-stream";
-
     std::string ext = path.substr(pos);
-
-    // Text
     if (ext == ".html" || ext == ".htm")
         return "text/html";
     if (ext == ".css")
         return "text/css";
     if (ext == ".txt")
         return "text/plain";
-
-    // Images
     if (ext == ".jpg" || ext == ".jpeg")
         return "image/jpeg";
     if (ext == ".png")
         return "image/png";
     if (ext == ".gif")
         return "image/gif";
-
-    // Documents
     if (ext == ".pdf")
         return "application/pdf";
-
-    // Audio
     if (ext == ".mp3")
         return "audio/mpeg";
-
-    // Video
     if (ext == ".mp4")
         return "video/mp4";
     if (ext == ".mov")
         return "video/quicktime";
-
     return "application/octet-stream";
 }
 
 void Client::sendFile(const std::string &filepath) {
-  std::cout << "Sending file: " << filepath << std::endl;
   std::string content = readFile(filepath);
   if (content.empty()) {
     sendError(404);
     return;
   }
-  std::cout << "File content size: " << content.size() << " bytes" << std::endl;
-
   setStatusCode("200");
-  setversion("HTTP/1.1");
+  setversion("HTTP/1.0");
   setStatusMessage("OK");
   setHeader("Content-Length", std::to_string(content.size()));
-  setHeader("Content-Type", getMimeType(filepath)); // You may want to determine
+  setHeader("Content-Type", getMimeType(filepath));
   setBody(content);
-  std::cout<< "Response to send:\n" << getRawResponse() << std::endl;
   buildResponse();
 }
 
 void Client::redirection(int statuscode, const std::string &newLocation) {
-  std::cout << "Redirecting to: " << newLocation << std::endl;
   setStatusCode(std::to_string(statuscode));
-  setversion("HTTP/1.1");
+  setversion("HTTP/1.0");
   setStatusMessage("Moved Permanently");
   setHeader("Location", newLocation);
   setHeader("Content-Length", "0");
@@ -292,7 +267,6 @@ std::string appendPath(const std::string& root, const std::string& path)
 void Client::handelGET() {
 
   findTargetLocation();
-
 
   std::string uri = getUri();
   std::string root = _targetLocation.getRoot();
@@ -316,23 +290,11 @@ void Client::handelGET() {
   }
   std::string target = appendPath(root, pathToAppend);
   struct stat statBuf;
-
-  std::cout << "Root: " << root << std::endl;
-  std::cout << "URI: " << uri << std::endl;
-  std::cout << "Location Path: " << locationPath << std::endl;
-  std::cout << "URI Suffix: " << uriSuffix << std::endl;
-  std::cout << "Target path: " << target << std::endl;
-
-  // if ()
-
   if (stat(target.c_str(), &statBuf) == -1) {
-    std::cout << "t1\n";
     sendError(404);
     return;
   }
-
   if (S_ISREG(statBuf.st_mode)) {
-    std::cout << "file \n";
       if(_targetLocation.isMethodAllowed(GET))
         sendFile(target);
       else 
@@ -340,7 +302,6 @@ void Client::handelGET() {
       return;
 
   } else if (S_ISDIR(statBuf.st_mode)) {
-    std::cout << "dirc\n";
     if (uri[uri.length() - 1] != '/') {
       redirection(301, uri + "/");
       return;
@@ -364,7 +325,7 @@ void Client::handelGET() {
           return;
         }
         setStatusCode("200");
-        setversion("HTTP/1.1");
+        setversion("HTTP/1.0");
         setStatusMessage("OK");
         setHeader("Content-Length", std::to_string(autoIndexHtml.size()));
         setHeader("Content-Type", "text/html");
@@ -376,8 +337,7 @@ void Client::handelGET() {
       }
     }
   } else {
-    // socket, pipe, device... not servable
-    // _code = 403;
+    sendError(403);
     return;
   }
 }

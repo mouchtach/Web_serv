@@ -30,7 +30,9 @@ public:
             case 400: return "Bad Request";
             case 403: return "Forbidden";
             case 404: return "Not Found";
+            case 405: return "Method Not Allowed";
             case 500: return "Internal Server Error";
+            case 502: return "Bad Gateway";
             case 501: return "Not Implemented";
             case 505: return "HTTP Version Not Supported";
             default: return "Unknown Status";
@@ -73,17 +75,14 @@ public:
         std::string body = getErrorBody(code);
         _statusCode = std::to_string(code);
         _statusMessage = statusCodeString(code);
-        _version = "HTTP/1.1";
+        _version = "HTTP/1.0";
         _header["Content-Length"] = std::to_string(body.size());
         _header["Content-Type"] = "text/html";
         _body = body;
         buildResponse();
-
-        // std::cout << "Sending error response:\n" << _rawResponse;
-
     }
 
-    void responseprocces();
+    // void responseprocces();
 
     #include <ctime>
 
@@ -100,6 +99,18 @@ public:
     void setRawResponse(const std::string& response) {
         _rawResponse = response;
     }
+    void setContentLength(size_t length) {
+        _contentLength = length;
+    }
+    size_t getContentLength() const {
+        return _contentLength;
+    }
+    void setContentType(const std::string& type) {
+        contentType = type;
+    }
+    const std::string& getContentType() const {
+        return contentType;
+    }   
     const std::string& getRawResponse() const {
         return _rawResponse;
     }
@@ -119,8 +130,7 @@ public:
         _version = version;
     }
     void buildResponse() {
-        // add la date
-        // add server
+
         _header["Date"] =  getCurrentDate();
         _header["Server"] = "webserv/1.0";
         _rawResponse = _version + " " + _statusCode + " " + _statusMessage + "\r\n";

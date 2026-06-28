@@ -17,13 +17,12 @@ Server::Server(const Config &config) : _config(config) {
     address.sin_family = AF_INET;
     address.sin_addr.s_addr = INADDR_ANY;
     address.sin_port = htons(_config.getPort());
-    // std::cout << "Binding server to port " << _config.getPort() << std::endl;
     if (bind(_fd, (struct sockaddr *)&address, sizeof(address)) < 0) {
         throw std::runtime_error("Failed to bind socket");
     }
     if (listen(_fd, MAX_CANON) < 0) {
         throw std::runtime_error("Failed to listen on socket");
     }
-    std::cout << "Server listening on port " << _config.getPort() << std::endl;
+    std::cout  << "Server listening on port " << _config.getPort() << std::endl;
 
 }

@@ -18,15 +18,15 @@ private:
   LocationConfig  _targetLocation;
 
 public:
-
+  Client(){}
   Client(int fd, const Config &config);
   int getFd() const;
   const Config &getConfig() const;
   void findTargetLocation();
 
-  void setTargetPath();
+  // void setTargetPath();
   Request &getrequest() { return _request; }
-  void readRequest();
+  // void readRequest();
   void setResponse(const std::string &response) {
     _response.setRawResponse(response);
   }
