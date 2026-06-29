@@ -264,6 +264,102 @@ std::string appendPath(const std::string& root, const std::string& path)
     return root + path;
 }
 
+std::string extractboundary(const std::string& contentType) {
+    std::string boundaryPrefix = "boundary=";
+    size_t pos = contentType.find(boundaryPrefix);
+    if (pos != std::string::npos) {
+        return "--" + contentType.substr(pos + boundaryPrefix.length());
+    }
+    return "";
+}
+
+std::string extractFileName(const std::string& body) {
+
+    std::string filename;
+    size_t pos = body.find("filename=\"");
+    if (pos != std::string::npos) {
+        pos += 10; // Move past 'filename="'
+        size_t endPos = body.find("\"", pos);
+        if (endPos != std::string::npos) {
+            filename = body.substr(pos, endPos - pos);
+        }
+    }
+    return filename;
+
+}
+
+
+std::string extactBodyfile(const std::string& body) {
+    std::string fileContent;
+    size_t pos = body.find("\r\n\r\n");
+    if (pos != std::string::npos) {
+        pos += 4;
+        size_t endPos = body.rfind("\r\n--");
+        if (endPos != std::string::npos && endPos > pos) {
+            fileContent = body.substr(pos, endPos - pos);
+        }
+    }
+    //remove 
+    return fileContent;
+}
+
+void Client::handelPOST(){
+  
+  findTargetLocation();
+  if(_targetLocation.isMethodAllowed(POST) == false)
+  {
+      std::cout << "POST method not allowed for this location" << std::endl;
+      sendError(405);
+      return;
+  }
+  std::string root = _targetLocation.getRoot();
+  std::string locationPath = _targetLocation.getPath();
+  std::string uri = getUri();
+  std::cout << "POST uri: " << uri << std::endl;
+  std::string pathToAppend;
+
+  if (_targetLocation.isRootOverridden())
+  {
+      std::string uriSuffix = uri.substr(locationPath.length());
+      pathToAppend = uriSuffix;
+  }
+  else
+  {
+      pathToAppend = uri;
+  }
+
+  std::cout << "pathToAppend: " << pathToAppend << std::endl;
+  std::string target = appendPath(root, pathToAppend);
+  std::cout << "POST target: " << target << std::endl;
+  struct stat statBuf;
+  if (stat(target.c_str(), &statBuf) == -1) {
+    sendError(404);
+    return;
+  }
+  std::string fileName = extractFileName(getBody());
+  std::cout << "POST fileName: " << fileName << std::endl;
+
+  // creat file
+  std::string filePath = appendPath(target, fileName);
+  std::ofstream outFile(filePath, std::ios::binary);
+  if (!outFile) {
+    sendError(500);
+    return;
+  }
+
+  std::cout << "POST boundary: " << extractboundary(extactBodyfile(getBody())) << std::endl;
+  
+  outFile << extactBodyfile(getBody());
+  outFile.close();
+  std::cout << "POST file created: " << filePath << std::endl;
+
+  setStatusCode("200");
+  setversion("HTTP/1.0");
+  setStatusMessage("OK");
+  buildResponse();
+  // (getFd());
+}
+
 void Client::handelGET() {
 
   findTargetLocation();

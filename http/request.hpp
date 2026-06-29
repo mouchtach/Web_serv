@@ -1,7 +1,7 @@
 #pragma once
 #include <string>
 #include <map>
-
+#include <iostream>
 enum HttpMethod
 {
     GET,
@@ -44,6 +44,9 @@ public:
     };
     void clear_rawRequest() {
         _rawRequest.clear();
+    }
+    std::string getRawRequest() const {
+        return _rawRequest;
     }
     const std::string& getVersion() const;
     const std::string& getBody() const;

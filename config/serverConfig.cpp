@@ -10,7 +10,7 @@
 const std::string &serverConfig::getRoot() const { return _root; }
 const std::string &serverConfig::getIndex() const { return _index; }
 bool serverConfig::getAutoindex() const { return _autoindex; }
-const std::string &serverConfig::getClientMaxBodySize() const {
+size_t serverConfig::getClientMaxBodySize() const {
   return _clientMaxBodySize;
 }
 // const std::vector<LocationConfig *> &serverConfig::getLocations() const {
@@ -98,7 +98,10 @@ void serverConfig::setClientMaxBodySize(const std::string &size) {
     if (!isdigit(s[i]))
       throw std::runtime_error(
           "Server: client_max_body_size must be a number, got '" + s + "'");
-  _clientMaxBodySize = s;
+  _clientMaxBodySize = std::strtoul(s.c_str(), NULL, 10);
+  if (_clientMaxBodySize == 0)
+    throw std::runtime_error(
+        "Server: client_max_body_size must be greater than 0, got '" + s + "'");
 }
 
 void serverConfig::addErrorPage(const std::string &code, const std::string &path) {

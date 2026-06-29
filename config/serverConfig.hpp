@@ -9,7 +9,7 @@ protected:
     std::string _root;
     std::string _index;
     bool _autoindex;
-    std::string _clientMaxBodySize;
+    size_t   _clientMaxBodySize;
     std::map<int, std::string> _errorPages;
     std::vector<std::string> _methods;
     std::string _cgiExtension;
@@ -32,7 +32,7 @@ public:
     const std::string& getRoot() const;
     const std::string& getIndex() const;
     bool getAutoindex() const;
-    const std::string& getClientMaxBodySize() const;
+    size_t getClientMaxBodySize() const;
     const std::map<int, std::string>& getErrorPages() const;
     const std::vector<std::string>& getMethods() const;
     const std::string& getCgiExtension() const;

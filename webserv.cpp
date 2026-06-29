@@ -77,12 +77,23 @@ void Webserv::readFromClient(int clientFd) {
     client->Request::appendrequest(std::string(buffer, bytesRead));
     if (client->Request::isheaderComplete()) 
     {
+      // check if body size is greater than client_max_body_size in metho d handelPOST of class Client
+      if (client->Request::getMethod() == POST && client->Request::getContentLength() > client->getConfig().getClientMaxBodySize()) 
+      {
+        // std::cout << "content-length: " << client->Request::getContentLength() << std::endl;
+        // std::cout << "client_max_body_size: " << client->getConfig().getClientMaxBodySize() << std::endl;
+        client->Response::sendError(413);
+        readyToSend(clientFd);
+        std::cerr << "\033[31mRequest body too large from client fd " << clientFd << "\033[0m" << std::endl;
+        return;
+      }
+
       if (client->Request::isRequestComplete()) 
       {
         client->processResponse();
         readyToSend(clientFd);
+        client->clear_rawRequest();
       }
-      client->clear_rawRequest();
     }
     } catch (int &e) {
         client->Response::sendError(e);
@@ -122,6 +133,7 @@ void Webserv::Start() {
                         if (bytesSent < 0) {
                             throw std::runtime_error("Failed to send response to client");
                         }
+                        std::cout << "\033[32mResponse sent to client fd " << _pollfds[i].fd << "\033[0m" << std::endl;
                         removeClient(_pollfds[i].fd);
                     }
                 } catch (const std::exception &e) {

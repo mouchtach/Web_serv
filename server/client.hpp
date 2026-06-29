@@ -34,9 +34,7 @@ public:
   void processResponse();
   void redirection(int statuscode, const std::string &newLocation);
   void handelGET();
-  void handelPOST() {
-    // Implement POST request handling logic here
-  }
+  void handelPOST();
   void handelDELETE() {
     // Implement DELETE request handling logic here
   }

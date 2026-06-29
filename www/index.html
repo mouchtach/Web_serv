@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <title>Webserv Tester</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #111; color: #eee;
+      font-family: monospace; font-size: 14px;
+      display: flex; flex-direction: column;
+      align-items: center; padding: 40px 20px; gap: 24px;
+      min-height: 100vh;
+    }
+    h1 { font-size: 1.2rem; color: #4f8ef7; letter-spacing: 2px; }
+
+    /* PANELS */
+    .panel {
+      background: #1a1a1a; border: 1px solid #2a2a2a;
+      border-radius: 8px; padding: 20px; width: 100%; max-width: 520px;
+    }
+    .panel h2 {
+      font-size: 0.75rem; letter-spacing: 0.1em; text-transform: uppercase;
+      margin-bottom: 14px; padding-bottom: 8px; border-bottom: 1px solid #2a2a2a;
+    }
+    .panel h2.get    { color: #4f8ef7; }
+    .panel h2.post   { color: #34d399; }
+    .panel h2.delete { color: #f87171; }
+
+    /* INPUTS */
+    input[type="text"] {
+      width: 100%; background: #111; border: 1px solid #333;
+      border-radius: 5px; color: #eee; font-family: monospace;
+      font-size: 13px; padding: 7px 10px; outline: none;
+      transition: border-color 0.15s;
+    }
+    input[type="text"]:focus { border-color: #4f8ef7; }
+    input[type="file"] { color: #aaa; font-size: 13px; }
+
+    label { font-size: 0.75rem; color: #666; display: block; margin-bottom: 4px; margin-top: 10px; }
+    label:first-child { margin-top: 0; }
+
+    /* BUTTONS */
+    button {
+      margin-top: 12px; width: 100%;
+      border: none; border-radius: 5px; cursor: pointer;
+      font-family: monospace; font-size: 13px; font-weight: bold;
+      padding: 9px; transition: opacity 0.15s;
+    }
+    button:hover { opacity: 0.8; }
+    .btn-get    { background: #4f8ef7; color: #fff; }
+    .btn-post   { background: #34d399; color: #000; }
+    .btn-delete { background: #f87171; color: #fff; }
+
+    /* POPUP OVERLAY */
+    #overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.7); z-index: 100;
+      align-items: center; justify-content: center;
+    }
+    #overlay.show { display: flex; }
+
+    #popup {
+      background: #1a1a1a; border-radius: 10px;
+      padding: 24px; width: 90%; max-width: 460px;
+      border: 1px solid #333; position: relative;
+    }
+
+    #popup-status {
+      font-size: 1.6rem; font-weight: bold; margin-bottom: 4px;
+    }
+    #popup-status.ok     { color: #34d399; }
+    #popup-status.err    { color: #f87171; }
+    #popup-status.redir  { color: #fbbf24; }
+
+    #popup-method {
+      font-size: 0.7rem; color: #666; letter-spacing: 0.1em;
+      text-transform: uppercase; margin-bottom: 14px;
+    }
+
+    #popup-body {
+      background: #111; border: 1px solid #2a2a2a;
+      border-radius: 6px; padding: 12px;
+      font-size: 12px; color: #aaa;
+      max-height: 200px; overflow-y: auto;
+      white-space: pre-wrap; word-break: break-word;
+      margin-bottom: 16px;
+    }
+
+    #popup-close {
+      width: 100%; background: #222; color: #eee;
+      border: 1px solid #333; border-radius: 5px;
+      font-family: monospace; font-size: 13px;
+      padding: 8px; cursor: pointer;
+    }
+    #popup-close:hover { background: #2a2a2a; }
+  </style>
+</head>
+<body>
+
+<h1>WEBSERV TESTER</h1>
+
+<!-- GET -->
+<div class="panel">
+  <h2 class="get">GET — fetch a file</h2>
+  <label>Path</label>
+  <input type="text" id="get-path" value="/index.html" placeholder="/index.html"/>
+  <button class="btn-get" onclick="doGet()">Send GET</button>
+</div>
+
+<!-- POST -->
+<div class="panel">
+  <h2 class="post">POST — upload a file</h2>
+  <label>Upload to path</label>
+  <input type="text" id="post-path" value="/upload" placeholder="/upload"/>
+  <label>File</label>
+  <input type="file" id="post-file"/>
+  <button class="btn-post" onclick="doPost()">Send POST</button>
+</div>
+
+<!-- DELETE -->
+<div class="panel">
+  <h2 class="delete">DELETE — remove a file</h2>
+  <label>Path to delete</label>
+  <input type="text" id="delete-path" value="/upload/test.txt" placeholder="/upload/test.txt"/>
+  <button class="btn-delete" onclick="doDelete()">Send DELETE</button>
+</div>
+
+<!-- POPUP -->
+<div id="overlay" onclick="closePopup(event)">
+  <div id="popup">
+    <div id="popup-status"></div>
+    <div id="popup-method"></div>
+    <div id="popup-body"></div>
+    <button id="popup-close" onclick="closePopup()">Close</button>
+  </div>
+</div>
+
+<script>
+  const STATUS = {
+    200: 'OK',
+    301: 'Moved Permanently',
+    400: 'Bad Request',
+    403: 'Forbidden',
+    404: 'Not Found',
+    405: 'Method Not Allowed',
+    413: 'Payload Too Large',
+    500: 'Internal Server Error',
+    501: 'Not Implemented',
+    502: 'Bad Gateway',
+    505: 'HTTP Version Not Supported',
+  };
+
+  function statusText(code) {
+    return STATUS[code] || 'Unknown Status';
+  }
+
+  function showPopup(method, path, status, body) {
+    const isOk    = status >= 200 && status < 300;
+    const isRedir = status >= 300 && status < 400;
+
+    document.getElementById('popup-status').textContent =
+      status + ' — ' + statusText(status);
+    document.getElementById('popup-status').className =
+      isOk ? 'ok' : isRedir ? 'redir' : 'err';
+
+    document.getElementById('popup-method').textContent =
+      method + '  ' + path;
+
+    document.getElementById('popup-body').textContent =
+      body.trim() || '(empty body)';
+
+    document.getElementById('overlay').classList.add('show');
+  }
+
+  function closePopup(e) {
+    // close only if clicking overlay background or the button
+    if (e && e.target !== document.getElementById('overlay') &&
+        e.target !== document.getElementById('popup-close')) return;
+    document.getElementById('overlay').classList.remove('show');
+  }
+
+  // ── GET ──────────────────────────────────────
+  function doGet() {
+    const path = document.getElementById('get-path').value || '/';
+    fetch(path, { method: 'GET' })
+      .then(r => r.text().then(body => showPopup('GET', path, r.status, body)))
+      .catch(err => showPopup('GET', path, 0, 'Network error: ' + err.message));
+  }
+
+  // ── POST ─────────────────────────────────────
+  function doPost() {
+    const path = document.getElementById('post-path').value || '/';
+    const fileInput = document.getElementById('post-file');
+
+    if (!fileInput.files.length) {
+      showPopup('POST', path, 0, 'No file selected.');
+      return;
+    }
+
+    const fd = new FormData();
+    fd.append('file', fileInput.files[0], fileInput.files[0].name);
+
+    // DO NOT set Content-Type manually — browser sets multipart boundary
+    fetch(path, { method: 'POST', body: fd })
+      .then(r => r.text().then(body => showPopup('POST', path, r.status, body)))
+      .catch(err => showPopup('POST', path, 0, 'Network error: ' + err.message));
+  }
+
+  // ── DELETE ───────────────────────────────────
+  function doDelete() {
+    const path = document.getElementById('delete-path').value || '/';
+    fetch(path, { method: 'DELETE' })
+      .then(r => r.text().then(body => showPopup('DELETE', path, r.status, body)))
+      .catch(err => showPopup('DELETE', path, 0, 'Network error: ' + err.message));
+  }
+</script>
+</body>
+</html>

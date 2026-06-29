@@ -84,6 +84,9 @@ void Request::parseHeaders(const std::string& headersPart)
             throw 400;
         start = end + 2;
     }
+    // if method is POST and content-length is not present, throw 400
+    if (_method == POST && _headers.find("content-length") == _headers.end())
+        throw 400;  
 }
 
 void Request::parseBody(const std::string& bodyPart)
@@ -121,22 +124,17 @@ void Request::parseRequest()
     parseHeaders(headerPart.substr(firstLineEnd + 2));
     _rawRequest.erase(0, headerEnd + 4);
 }
-
+#include <iostream>
 bool Request::isRequestComplete()
 {
     if(_method == POST)
     {
-        if (_rawRequest.size() >= getContentLength())
-        {
+        if (_rawRequest.size() >= getContentLength()) {
             _body = _rawRequest.substr(0, getContentLength());
-            // std::cout  << "Request body complete based on Content-Length header." << std::endl;
             return true;
         }
         else 
-        {
-            // std::cout  << "Request body incomplete. Received " << _rawRequest.size() << " bytes, expected " << getContentLength() << " bytes." << std::endl;
             return false;
-        }
     }
     return true; 
 }
