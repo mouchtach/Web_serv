@@ -3,14 +3,12 @@
 #include "../http/request.hpp"
 #include "../http/response.hpp"
 #include <poll.h>
-// #include <bool.h>
 
 class LocationConfig;
 
 class Client : public Request, public Response
 {
 private:
-
   int             _fd;
   Config          _config;
   Request         _request;
@@ -18,27 +16,24 @@ private:
   LocationConfig  _targetLocation;
 
 public:
-  Client(){}
+  Client();
   Client(int fd, const Config &config);
+
+
+  // getters
   int getFd() const;
   const Config &getConfig() const;
-  void findTargetLocation();
+  const Request &getRequest() const;
+  const Response &getResponse() const;
 
-  // void setTargetPath();
-  Request &getrequest() { return _request; }
-  // void readRequest();
-  void setResponse(const std::string &response) {
-    _response.setRawResponse(response);
-  }
-  const Response &getResponse() const { return _response; }
+
+  void findTargetLocation();
   void processResponse();
+  void processAutoIndex(const std::string &uri, const std::string &target);
   void redirection(int statuscode, const std::string &newLocation);
+  void sendFile(const std::string &filepath);
+
   void handelGET();
   void handelPOST();
-  void handelDELETE() {
-    // Implement DELETE request handling logic here
-  }
-  std::string getfilepath();
-  void sendFile(const std::string &filepath);
-  std::string buildAutoIndex(const std::string &dirPath, const std::string &uri);
+  void handelDELETE();
 };

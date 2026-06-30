@@ -3,7 +3,6 @@
 #include <fstream>
 #include <iostream>
 #include <sstream>
-// #include <vector>
 
 std::string intToStr(int n) 
 {
@@ -12,7 +11,7 @@ std::string intToStr(int n)
     return ss.str();
 }
 
-std::string ParssingConf::readFile(const std::string &filename) 
+std::string ParssingConf::ReadConfig(const std::string &filename) 
 {
     std::ifstream file(filename.c_str());
     if (!file.is_open())
@@ -51,7 +50,6 @@ std::vector<std::string> ParssingConf::tokenize(const std::string &content)
     for (size_t i = 0; i < content.size(); ++i) 
     {
         char c = content[i];
-
         if (c == '{' || c == '}')
         {
             if (!current.empty()) 
@@ -71,7 +69,6 @@ std::vector<std::string> ParssingConf::tokenize(const std::string &content)
             current += c;
         }
     }
-
     if (!current.empty())
         tokens.push_back(current);
     return tokens;
@@ -84,7 +81,6 @@ Config ParssingConf::parseServerBlock(const std::vector<std::string> &tokens, si
     while (i < tokens.size() && tokens[i] != "}") 
     {
 		std::string directive = tokens[i++];
-        
 		if (directive == "listen") {
 			if (i >= tokens.size())
 				throw std::runtime_error("'listen' missing value");
@@ -116,7 +112,6 @@ Config ParssingConf::parseServerBlock(const std::vector<std::string> &tokens, si
 			std::string path = tokens[i++];
 			cfg.addErrorPage(code, path);
 		} else if (directive == "location") {
-
 			if (i >= tokens.size())
 				throw std::runtime_error("'location' missing path");
 			std::string path = tokens[i++];
@@ -154,7 +149,6 @@ Config ParssingConf::parseServerBlock(const std::vector<std::string> &tokens, si
 	return cfg;
 }
 
-
 void ParssingConf::validate() {
   for (size_t i = 0; i < _configs.size(); ++i) {
     for (size_t j = i + 1; j < _configs.size(); ++j) {
@@ -166,14 +160,11 @@ void ParssingConf::validate() {
   }
 }
 
-// void ParssingConf::error(const std::string &msg) {
-//   throw std::runtime_error("[Config Error] " + msg);
-// }
-
 const std::vector<Config> &ParssingConf::getConfigs() const { return _configs; }
 
 void ParssingConf::parseConfig(const std::string &filename) {
-  std::string raw = readFile(filename);
+
+  std::string raw = ReadConfig(filename);
   std::string cleaned = removeComments(raw);
   std::vector<std::string> tokens = tokenize(cleaned);
 
@@ -196,7 +187,6 @@ void ParssingConf::parseConfig(const std::string &filename) {
     } else
       throw std::runtime_error("Unexpected token outside server block: '" + tokens[i] + "'");
   }
-
   if (_configs.empty())
     throw std::runtime_error("No server blocks found in config file");
   validate();

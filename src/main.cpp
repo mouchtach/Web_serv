@@ -1,8 +1,9 @@
 // #include "config/ParssingConf.hpp"
 #include "Webserv.hpp"
 #include <iostream>
-
+// ./we    
 int main(int argc, char **argv) {
+    // signal(SIGPIPE, SIG_IGN);f
 
     if(argc == 1 || argc == 2)
     {
@@ -20,7 +21,6 @@ int main(int argc, char **argv) {
         }
         catch (const std::exception &e)
         {
-            
             return 1;
         }   
     }

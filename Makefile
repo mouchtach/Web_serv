@@ -3,12 +3,13 @@ NAME = webserv
 CXX = c++
 CXXFLAGS = -Wall -Wextra -Werror -std=c++98 -g
 
-SRC = 	main.cpp \
-		webserv.cpp \
+SRC = 	src/main.cpp \
+		src/webserv.cpp \
 		config/Config.cpp \
 		config/LocationConfig.cpp \
 		config/ParssingConf.cpp \
 		config/serverConfig.cpp \
+		server/utils.cpp \
 		server/server.cpp \
 		server/client.cpp \
 		http/request.cpp \

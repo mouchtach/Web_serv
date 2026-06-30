@@ -1,7 +1,7 @@
 #pragma once 
 
-#include "server/server.hpp"
-#include "server/client.hpp"
+#include "../server/server.hpp"
+#include "../server/client.hpp"
 #include <vector>
 #include <poll.h>
 

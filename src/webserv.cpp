@@ -1,8 +1,7 @@
 #include "Webserv.hpp"
-#include "config/ParssingConf.hpp"
-#include "server/client.hpp"
-#include "server/server.hpp"
-// #include <algorithm>
+#include "../config/ParssingConf.hpp"
+#include "../server/client.hpp"
+#include "../server/server.hpp"
 #include <iostream>
 #include <string>
 #include <unistd.h>
@@ -17,32 +16,30 @@ bool Webserv::is_server(int fd) const {
 }
 
 void Webserv::setupServers(const std::string &configFile) {
-  ParssingConf parser;
-  try {
-    std::cout << "\033[32mParsing config file: " << configFile << "\033[0m" << std::endl;
-    parser.parseConfig(configFile);
-  } catch (const std::exception &e) {
-    std::cerr << "\033[31mError parsing config file: " << e.what() << "\033[0m" << std::endl;
-    throw;
-  }
 
-  //in green message setup servers
-  std::cout << "\033[32mSetting up servers...\033[0m" << std::endl;
-  const std::vector<Config> &configs = parser.getConfigs();
-
-  for (size_t i = 0; i < configs.size(); ++i) {
+    ParssingConf parser;
     try {
-      Server server(configs[i]);
-      _servers.push_back(server);
-      pollfd pfd;
-      pfd.fd = server.getFd();
-      pfd.events = POLLIN;
-      _pollfds.push_back(pfd);
+        std::cout << "\033[32mParsing config file: " << configFile << "\033[0m" << std::endl;
+        parser.parseConfig(configFile);
     } catch (const std::exception &e) {
-      std::cerr << "\033[31mError setting up server on port " << configs[i].getPort() << ": " << e.what() << "\033[0m" << std::endl;
-      throw;  
+        std::cerr << "\033[31mError parsing config file: " << e.what() << "\033[0m" << std::endl;
+        throw;
     }
-  }
+    std::cout << "\033[32mSetting up servers...\033[0m" << std::endl;
+    const std::vector<Config> &configs = parser.getConfigs();
+    for (size_t i = 0; i < configs.size(); ++i) {
+        try {
+            Server server(configs[i]);
+            _servers.push_back(server);
+            pollfd pfd;
+            pfd.fd = server.getFd();
+            pfd.events = POLLIN;
+            _pollfds.push_back(pfd);
+        } catch (const std::exception &e) {
+            std::cerr << "\033[31mError setting up server on port " << configs[i].getPort() << ": " << e.what() << "\033[0m" << std::endl;
+            throw;  
+        }
+    }
 }
 
 void Webserv::newConnection(int serverFd) {
@@ -77,17 +74,13 @@ void Webserv::readFromClient(int clientFd) {
     client->Request::appendrequest(std::string(buffer, bytesRead));
     if (client->Request::isheaderComplete()) 
     {
-      // check if body size is greater than client_max_body_size in metho d handelPOST of class Client
       if (client->Request::getMethod() == POST && client->Request::getContentLength() > client->getConfig().getClientMaxBodySize()) 
       {
-        // std::cout << "content-length: " << client->Request::getContentLength() << std::endl;
-        // std::cout << "client_max_body_size: " << client->getConfig().getClientMaxBodySize() << std::endl;
         client->Response::sendError(413);
         readyToSend(clientFd);
         std::cerr << "\033[31mRequest body too large from client fd " << clientFd << "\033[0m" << std::endl;
         return;
       }
-
       if (client->Request::isRequestComplete()) 
       {
         client->processResponse();
@@ -99,7 +92,6 @@ void Webserv::readFromClient(int clientFd) {
         client->Response::sendError(e);
         readyToSend(clientFd);
         std::cerr << "\033[31mBad request from client fd " << clientFd << ": " << e << "\033[0m" << std::endl;
-        // removeClient(clientFd);
     }
     catch (const std::exception &e) {
         std::cerr << "\033[31mError reading from client fd " << clientFd << ": " << e.what() << "\033[0m" << std::endl;
@@ -108,7 +100,6 @@ void Webserv::readFromClient(int clientFd) {
 }
 
 void Webserv::Start() {
-
     while (true) {
         int ret = poll(_pollfds.data(), _pollfds.size(), -1); 
         if (ret < 0) {
@@ -122,14 +113,15 @@ void Webserv::Start() {
                     newConnection(_pollfds[i].fd);
                 else
                     readFromClient(_pollfds[i].fd);
-
-            } else if (_pollfds[i].revents & POLLOUT) 
+            } 
+            else if (_pollfds[i].revents & POLLOUT) 
             {
                 try {
                     Client *client = getClientByFd(_pollfds[i].fd);
                     if (client) {
                         const std::string &response = client->Response::getRawResponse();
                         ssize_t bytesSent = send(_pollfds[i].fd, response.c_str(), response.size(), 0);
+                        std::cout << "bytesSent: " << bytesSent << std::endl;
                         if (bytesSent < 0) {
                             throw std::runtime_error("Failed to send response to client");
                         }
@@ -183,51 +175,12 @@ void Webserv::removeClient(int clientFd) {
       break;
     }
   }
-  std::cerr << "\033[31mClient fd " << clientFd << " disconnected and removed\033[0m" << std::endl;
   close(clientFd);
 }
 
 void Webserv::readyToSend(int clientFd) {
   pollfd *pfd = getPollfdByFd(clientFd);
   if (pfd) {
-    // std::cout << "Ready to send response to client fd " << clientFd
-    //           << std::endl;
     pfd->events = POLLOUT;
   }
 }
-
-// void Webserv::PrintServers() const {
-//   std::cout << "Configured Servers:" << std::endl;
-//   for (size_t i = 0; i < _servers.size(); ++i) {
-//     const Config &cfg = _servers[i].getConfig();
-//     std::cout << "Server " << i + 1 << ":" << std::endl;
-//     std::cout << "  Port: " << cfg.getPort() << std::endl;
-//     std::cout << "  Server Name: " << cfg.getServerName() << std::endl;
-//     std::cout << "  Root: " << cfg.getRoot() << std::endl;
-//     std::cout << "  Index: " << cfg.getIndex() << std::endl;
-//     std::cout << "  Autoindex: " << (cfg.getAutoindex() ? "on" : "off")
-//               << std::endl;
-//     std::cout << "  Client Max Body Size: " << cfg.getClientMaxBodySize()
-//               << std::endl;
-
-//     const std::map<int, std::string> &errorPages = cfg.getErrorPages();
-//     if (!errorPages.empty()) {
-//       std::cout << "  Error Pages:" << std::endl;
-//       for (std::map<int, std::string>::const_iterator it = errorPages.begin();
-//            it != errorPages.end(); ++it) {
-//         std::cout << "    Code: " << it->first << ", Path: " << it->second
-//                   << std::endl;
-//       }
-//     }
-
-//     const std::vector<LocationConfig *> &locations = cfg.getLocations();
-//     if (!locations.empty()) {
-//       std::cout << "  Locations:" << std::endl;
-//       for (size_t j = 0; j < locations.size(); ++j) {
-//         const LocationConfig *loc = locations[j];
-//         std::cout << "    Location Path: " << loc->getPath() << std::endl;
-//         // Print other location-specific configurations as needed
-//       }
-//     }
-//   }
-// }
