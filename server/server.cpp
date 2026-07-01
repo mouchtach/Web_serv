@@ -2,6 +2,7 @@
 #include <sys/socket.h>
 // #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <unistd.h>
 #include <iostream>
 
 Server::Server(const Config &config) : _config(config) {
@@ -25,4 +26,10 @@ Server::Server(const Config &config) : _config(config) {
     }
     std::cout  << "Server listening on port " << _config.getPort() << std::endl;
 
+}
+
+Server::~Server() {
+    if (_fd >= 0) {
+        close(_fd);
+    }
 }

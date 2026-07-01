@@ -1,13 +1,19 @@
 #include "client.hpp"
 #include "utils.h"
 #include <sys/stat.h>
+#include <unistd.h>
 
-Client::Client() : _fd(-1), _config(), _request(), _response(), _targetLocation() {}
+Client::Client(): _fd(-1), _config(), _targetLocation() , _request(), _response() {}
 
 Client::Client(int fd, const Config &config) : _fd(fd), _config(config) {
-    _complete = false;
-    setConfig(config);
+    _response.setConfig(config);
 }
+
+Client::~Client() {
+    if (_fd >= 0) {
+        close(_fd);
+    }
+} 
 
 // getters
 int Client::getFd() const { return _fd; }
@@ -18,7 +24,7 @@ const Request &Client::getRequest() const { return _request; }
 
 void Client::findTargetLocation() {
     const std::vector<LocationConfig> &locations = _config.getLocations();
-    std::string uri = getUri();
+    std::string uri = _request.getUri();
 
     for (size_t i = 0; i < locations.size(); i++) 
     {
@@ -31,11 +37,11 @@ void Client::findTargetLocation() {
 }
 
 void Client::processResponse() {
-    if (Request::getMethod() == GET) {
+    if (_request.getMethod() == GET) {
         handelGET();
-    } else if (Request::getMethod() == POST) {
+    } else if (_request.getMethod() == POST) {
         handelPOST();
-    } else if (Request::getMethod() == DELETE) {
+    } else if (_request.getMethod() == DELETE) {
         handelDELETE();
     }
 }
@@ -43,56 +49,59 @@ void Client::processResponse() {
 void Client::processAutoIndex(const std::string &uri, const std::string &target) {
     std::string autoIndexHtml = buildAutoIndex(target, uri);
     if (autoIndexHtml.empty()) {
-        sendError(403);
+        _response.sendError(403);
         return;
     }
-    setStatusCode("200");
-    setversion("HTTP/1.0");
-    setStatusMessage("OK");
-    setHeader("Content-Length", std::to_string(autoIndexHtml.size()));
-    setHeader("Content-Type", "text/html");
-    setBody(autoIndexHtml);
-    buildResponse();
+    _response.setStatusCode("200");
+    _response.setversion("HTTP/1.0");
+    _response.setStatusMessage("OK");
+    _response.setHeader("Content-Length", std::to_string(autoIndexHtml.size()));
+    _response.setHeader("Content-Type", "text/html");
+    _response.setBody(autoIndexHtml);
+    _response.buildResponse();
 }
 
 void Client::redirection(int statuscode, const std::string &newLocation) {
-  setStatusCode(std::to_string(statuscode));
-  setversion("HTTP/1.0");
-  setStatusMessage("Moved Permanently");
-  setHeader("Location", newLocation);
-  setHeader("Content-Length", "0");
-  buildResponse();
+  _response.setStatusCode(std::to_string(statuscode));
+  _response.setversion("HTTP/1.0");
+  _response.setStatusMessage("Moved Permanently");
+  _response.setHeader("Location", newLocation);
+  _response.setHeader("Content-Length", "0");
+  _response.buildResponse();
 }
 
 void Client::sendFile(const std::string &filepath) {
   std::string content = readFile(filepath);
-  std::cout << "file size: " << content.size() << std::endl;
   if (content.empty()) {
-    sendError(404);
+    _response.sendError(404);
     return;
   }
-//   std::cout << "content length: " << content.size() << std::endl;
-  setStatusCode("200");
-  setversion("HTTP/1.0");
-  setStatusMessage("OK");
-  setHeader("Content-Length", std::to_string(content.size()));
-  setHeader("Content-Type", getMimeType(filepath));
-  setBody(content);
-  buildResponse();
+  _response.setStatusCode("200");
+  _response.setversion("HTTP/1.0");
+  _response.setStatusMessage("OK");
+  _response.setHeader("Content-Length", std::to_string(content.size()));
+  _response.setHeader("Content-Type", getMimeType(filepath));
+  _response.setBody(content);
+  _response.buildResponse();
 }
 
 
 void Client::handelDELETE() {
   findTargetLocation();
+  std::string uri = _request.getUri();
+  if (isPathsafe(uri) == false)
+  {
+      _response.sendError(403);
+      return;
+  }
   if(_targetLocation.isMethodAllowed(DELETE) == false)
   {
       std::cout << "DELETE method not allowed for this location" << std::endl;
-      sendError(405);
+      _response.sendError(405);
       return;
   }
   std::string root = _targetLocation.getRoot();
   std::string locationPath = _targetLocation.getPath();
-  std::string uri = getUri();
   std::string pathToAppend;
 
   if (_targetLocation.isRootOverridden())
@@ -108,33 +117,38 @@ void Client::handelDELETE() {
   std::string target = appendPath(root, pathToAppend);
   struct stat statBuf;
   if (stat(target.c_str(), &statBuf) == -1) {
-    sendError(404);
+    _response.sendError(404);
     return;
   }
   
   if (remove(target.c_str()) != 0) {
-    sendError(500);
+    _response.sendError(500);
     return;
   }
 
-  setStatusCode("200");
-  setversion("HTTP/1.0");
-  setStatusMessage("OK");
-  buildResponse();
+  _response.setStatusCode("200");
+  _response.setversion("HTTP/1.0");
+  _response.setStatusMessage("OK");
+  _response.buildResponse();
 }
 
 void Client::handelPOST(){
   
   findTargetLocation();
+  std::string uri = _request.getUri();
+  if (isPathsafe(uri) == false)
+  {
+      _response.sendError(403);
+      return;
+  }
   if(_targetLocation.isMethodAllowed(POST) == false)
   {
       std::cout << "POST method not allowed for this location" << std::endl;
-      sendError(405);
+      _response.sendError(405);
       return;
   }
   std::string root = _targetLocation.getRoot();
   std::string locationPath = _targetLocation.getPath();
-  std::string uri = getUri();
   std::cout << "POST uri: " << uri << std::endl;
   std::string pathToAppend;
 
@@ -153,43 +167,48 @@ void Client::handelPOST(){
   std::cout << "POST target: " << target << std::endl;
   struct stat statBuf;
   if (stat(target.c_str(), &statBuf) == -1) {
-    sendError(404);
+    _response.sendError(404);
     return;
   }
-  std::string fileName = extractFileName(getBody());
+  std::string fileName = extractFileName(_request.getBody());
   std::cout << "POST fileName: " << fileName << std::endl;
 
   // creat file
   std::string filePath = appendPath(target, fileName);
   std::ofstream outFile(filePath, std::ios::binary);
   if (!outFile) {
-    sendError(500);
+    _response.sendError(500);
     return;
   }
 
   
-  outFile << extractBodyfile(getBody());
+  outFile << extractBodyfile(_request.getBody());
   outFile.close();
   std::cout << "POST file created: " << filePath << std::endl;
 
-  setStatusCode("200");
-  setversion("HTTP/1.0");
-  setStatusMessage("OK");
-  buildResponse();
+  _response.setStatusCode("200");
+  _response.setversion("HTTP/1.0");
+  _response.setStatusMessage("OK");
+  _response.buildResponse();
   // (getFd());
 }
 
 void Client::handelGET() {
 
   findTargetLocation();
-
-  std::string uri = getUri();
+  std::string uri = _request.getUri();
+  // std::cout << "GET uri: " << uri << std::endl;
   std::string root = _targetLocation.getRoot();
   std::string index = _targetLocation.getIndex();
   std::string locationPath = _targetLocation.getPath();
   std::string uriSuffix;
   std::string pathToAppend;
 
+  if(isPathsafe(uri) == false)
+  {
+      _response.sendError(403);
+      return;
+  }
   if(_targetLocation.hasredirection()){
     redirection(_targetLocation.getReturn().first, root + _targetLocation.getReturn().second);
     return;
@@ -206,14 +225,14 @@ void Client::handelGET() {
   std::string target = appendPath(root, pathToAppend);
   struct stat statBuf;
   if (stat(target.c_str(), &statBuf) == -1) {
-    sendError(404);
+    _response.sendError(404);
     return;
   }
   if (S_ISREG(statBuf.st_mode)) {
       if(_targetLocation.isMethodAllowed(GET))
         sendFile(target);
       else 
-        sendError(405);
+        _response.sendError(405);
       return;
 
   } else if (S_ISDIR(statBuf.st_mode)) {
@@ -223,7 +242,7 @@ void Client::handelGET() {
     }
     if(!_targetLocation.isMethodAllowed(GET))
     {
-        sendError(405);
+        _response.sendError(405);
         return;
     }
     std::string indexPath = target + "/" + index;
@@ -235,12 +254,12 @@ void Client::handelGET() {
       if (_targetLocation.getAutoindex()) {
         processAutoIndex(uri, target);
       } else {
-        sendError(403);
+        _response.sendError(403);
         return;
       }
     }
   } else {
-    sendError(403);
+    _response.sendError(403);
     return;
   }
 }

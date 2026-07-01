@@ -1,4 +1,5 @@
 #include "request.hpp"
+#include "httpexception.hpp"
 
 
 HttpMethod Request::stringToMethod(const std::string& method){
@@ -15,15 +16,17 @@ HttpMethod Request::stringToMethod(const std::string& method){
 
 void Request::parseRequestLine(const std::string& line)
 {
+    // std::cout << "Parsing request line: " << line << std::endl;
     size_t pos1 = line.find(' ');
 
     if (pos1 == std::string::npos)
-        throw 400;
+    // message for situation where the request line is malformed
+        throw HttpException(400, "bad request" );
 
     size_t pos2 = line.find(' ', pos1 + 1);
 
     if (pos2 == std::string::npos)
-        throw 400;
+        throw HttpException(400, "bad request" );
 
     std::string method =line.substr(0, pos1);
 
@@ -34,11 +37,12 @@ void Request::parseRequestLine(const std::string& line)
     _method = stringToMethod(method);
 
     if (_method == UNKNOWN)
-        throw 400;
+        throw HttpException(400, "bad request");
     if (_version != "HTTP/1.1" && _version != "HTTP/1.0")
-        throw 400;
+        throw HttpException(400, "bad request");
     if (_uri.empty())
-        throw 400;
+        throw HttpException(400, "bad request");
+    // std::cout << "URI: " << _uri << std::endl;
 }
 
 bool Request::validkey(const std::string& key) const
@@ -63,7 +67,7 @@ void Request::parseHeaders(const std::string& headersPart)
 
         size_t colon = line.find(':');
         if (colon == std::string::npos)
-            throw 400;
+            throw HttpException(400, "bad request");
 
         std::string key = line.substr(0, colon);
         // i want changer the key to lowercase
@@ -81,12 +85,12 @@ void Request::parseHeaders(const std::string& headersPart)
             _headers[key] = value;
         }
         else
-            throw 400;
+            throw HttpException(400, "bad request");
         start = end + 2;
     }
-    // if method is POST and content-length is not present, throw 400
+    // if method is POST and content-length is not present, throw HttpException(400, "bad request")
     if (_method == POST && _headers.find("content-length") == _headers.end())
-        throw 400;  
+        throw HttpException(400, "bad request");  
 }
 
 void Request::parseBody(const std::string& bodyPart)
@@ -115,11 +119,11 @@ void Request::parseRequest()
 {
     size_t headerEnd = _rawRequest.find("\r\n\r\n");
     if (headerEnd == std::string::npos)
-        throw 400;
+        throw HttpException(400, "bad request");
     std::string headerPart = _rawRequest.substr(0, headerEnd);
     size_t firstLineEnd = headerPart.find("\r\n");
     if (firstLineEnd == std::string::npos)
-        throw 400;
+        throw HttpException(400, "bad request");
     parseRequestLine(headerPart.substr(0, firstLineEnd));
     parseHeaders(headerPart.substr(firstLineEnd + 2));
     _rawRequest.erase(0, headerEnd + 4);

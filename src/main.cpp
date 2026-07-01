@@ -9,7 +9,7 @@ int main(int argc, char **argv) {
     {
         std::string configFile ;
         if (argc == 1) {
-            configFile = "config/default.conf";
+            configFile = "conf/default.conf";
         } else {
             configFile = argv[1];
         }

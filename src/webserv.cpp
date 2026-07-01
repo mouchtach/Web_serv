@@ -1,10 +1,14 @@
 #include "Webserv.hpp"
+#include "../http/httpexception.hpp"
 #include "../config/ParssingConf.hpp"
 #include "../server/client.hpp"
 #include "../server/server.hpp"
+#include <fcntl.h>
 #include <iostream>
 #include <string>
 #include <unistd.h>
+#include <cerrno> 
+#include <cstring>
 
 bool Webserv::is_server(int fd) const {
   for (size_t i = 0; i < _servers.size(); ++i) {
@@ -46,6 +50,8 @@ void Webserv::newConnection(int serverFd) {
   int clientFd = accept(serverFd, NULL, NULL);
   if (clientFd < 0)
     throw std::runtime_error("Failed to accept new connection");
+  if (fcntl(clientFd, F_SETFL, O_NONBLOCK) < 0)
+    throw std::runtime_error("Failed to set client socket to non-blocking");
   Client client(clientFd, getServerByFd(serverFd)->getConfig());
   _clients.push_back(client);
   _clientMap[clientFd] = client;
@@ -63,35 +69,36 @@ void Webserv::readFromClient(int clientFd) {
       throw std::runtime_error("Client not found");
     char buffer[4096];
     ssize_t bytesRead = recv(clientFd, buffer, sizeof(buffer), 0);
+    // std::cout << "buffer: " << std::string(buffer, bytesRead) << std::endl;
     if (bytesRead < 0)
       throw std::runtime_error("Failed to read from client");
     else if (bytesRead == 0) {
-      if (client->Request::isheaderComplete() && !client->Request::isRequestComplete())
+      if (client->_request.isheaderComplete() && !client->_request.isRequestComplete())
         throw std::runtime_error("Client closed connection before sending complete request body");
       removeClient(clientFd);
       return;
     }
-    client->Request::appendrequest(std::string(buffer, bytesRead));
-    if (client->Request::isheaderComplete()) 
+    client->_request.appendrequest(std::string(buffer, bytesRead));
+    if (client->_request.isheaderComplete()) 
     {
-      if (client->Request::getMethod() == POST && client->Request::getContentLength() > client->getConfig().getClientMaxBodySize()) 
+      if (client->_request.getMethod() == POST && client->_request.getContentLength() > client->getConfig().getClientMaxBodySize()) 
       {
-        client->Response::sendError(413);
+        client->_response.sendError(413);
         readyToSend(clientFd);
         std::cerr << "\033[31mRequest body too large from client fd " << clientFd << "\033[0m" << std::endl;
         return;
       }
-      if (client->Request::isRequestComplete()) 
+      if (client->_request.isRequestComplete()) 
       {
         client->processResponse();
         readyToSend(clientFd);
-        client->clear_rawRequest();
+        client->_request.clear_rawRequest();
       }
     }
-    } catch (int &e) {
-        client->Response::sendError(e);
+    } catch (const HttpException &e) {
+        client->_response.sendError(e.getStatusCode());
         readyToSend(clientFd);
-        std::cerr << "\033[31mBad request from client fd " << clientFd << ": " << e << "\033[0m" << std::endl;
+        std::cerr << "\033[31mBad request from client fd " << clientFd << ": " << e.getMessage() << "\033[0m" << std::endl;
     }
     catch (const std::exception &e) {
         std::cerr << "\033[31mError reading from client fd " << clientFd << ": " << e.what() << "\033[0m" << std::endl;
@@ -118,14 +125,24 @@ void Webserv::Start() {
             {
                 try {
                     Client *client = getClientByFd(_pollfds[i].fd);
-                    if (client) {
-                        const std::string &response = client->Response::getRawResponse();
-                        ssize_t bytesSent = send(_pollfds[i].fd, response.c_str(), response.size(), 0);
-                        std::cout << "bytesSent: " << bytesSent << std::endl;
-                        if (bytesSent < 0) {
-                            throw std::runtime_error("Failed to send response to client");
-                        }
-                        std::cout << "\033[32mResponse sent to client fd " << _pollfds[i].fd << "\033[0m" << std::endl;
+                    if (!client) {
+                        removeClient(_pollfds[i].fd);
+                        continue;
+                    }
+                    const std::string &response = client->_response.getRawResponse();
+                    size_t offset = client->_response.getSentBytes();
+                    size_t remaining = response.size() - offset;
+                    ssize_t bytesSent = send(_pollfds[i].fd, response.c_str() + offset, remaining, 0);
+                    if (bytesSent < 0) {
+                        continue;
+                    }
+                    if (bytesSent == 0) {
+                        removeClient(_pollfds[i].fd);
+                        continue;
+                    }
+                    client->_response.setSentBytes(offset + bytesSent);
+                    if (client->_response.getSentBytes() >= response.size()) {
+                        std::cout << "\033[32mFull response sent to fd " << _pollfds[i].fd << "\033[0m" << std::endl;
                         removeClient(_pollfds[i].fd);
                     }
                 } catch (const std::exception &e) {
@@ -133,7 +150,7 @@ void Webserv::Start() {
                     removeClient(_pollfds[i].fd);
                 }
             } else if (_pollfds[i].revents & (POLLERR | POLLHUP | POLLNVAL)) {
-                std::cerr << "\033[31mError on fd " << _pollfds[i].fd << ", closing connection\033[0m" << std::endl;
+                // std::cerr << "\033[31mError on fd " << _pollfds[i].fd << ", closing connection\033[0m" << std::endl;
                 removeClient(_pollfds[i].fd);
             }
         }
