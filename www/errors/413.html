@@ -8,29 +8,14 @@
 </head>
 <body class="error-page">
 <div class="error-card">
-
-  <div class="term" style="margin-bottom:26px;">
-    <div class="term-bar">
-      <span class="term-dot amber"></span>
-      <span class="term-dot"></span>
-      <span class="term-dot"></span>
-      <span class="term-title">body — over limit</span>
-    </div>
-  </div>
-
-  <div class="error-code warn">413</div>
-  <div class="error-status">Payload Too Large</div>
-
+  <div class="error-icon">413</div>
+  <div class="error-code warn">Payload Too Large</div>
+  <div class="error-status">The request body exceeds the limit</div>
   <div class="error-msg">
-    <div class="prompt-line"><span>$</span> content-length exceeds client_max_body_size</div>
-    the request body is larger than this server allows. reduce the payload or
-    raise the limit in the config block for this server.
+    <div class="prompt-line"><span>&gt;</span> content-length exceeds client_max_body_size</div>
+    The request body is larger than this server allows. Reduce the payload or raise the limit in the config block for this server.
   </div>
-
-  <div class="error-actions">
-    <a href="/">cd /</a>
-  </div>
-
+  <div class="error-actions"><a href="/">Back to home</a></div>
 </div>
 </body>
 </html>

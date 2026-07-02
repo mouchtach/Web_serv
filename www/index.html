@@ -3,62 +3,88 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>webserv — console</title>
+<title>webserv — by ymouchta</title>
 <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
 <div class="wrap">
 
   <div class="topbar">
-    <span>root@webserv:~$</span>
-    <span class="status-pill"><span class="dot"></span>listening</span>
+    <span>webserv/1.0</span>
+    <span class="status-pill"><span class="dot"></span>server listening</span>
   </div>
 
+  <!-- ============ HEADER ============ -->
   <div class="hero">
-    <pre class="ascii">┌──────────────────────────────┐
-│  HTTP/1.1 · C++98 · nginx‑lite│
-└──────────────────────────────┘</pre>
-    <div class="hero-title">WEBSERV<span class="cursor"></span></div>
-    <div class="hero-sub">live console — every action below is a real request against this server.</div>
+    <div class="hero-icon">ws</div>
+    <div>
+      <div class="hero-title">
+        webserv
+        <span class="by">by <a href="https://github.com/mouchtach" target="_blank">ymouchta</a></span>
+      </div>
+      <div class="hero-sub">
+        A non-blocking HTTP/1.0 server written in C++98, built for the 42 curriculum.
+        Single-threaded, driven entirely by <code>poll()</code> — no request ever blocks another.
+      </div>
+      <div class="hero-badges">
+        <span class="badge">C++98</span>
+        <span class="badge">poll()</span>
+        <span class="badge">HTTP/1.0</span>
+        <span class="badge">CGI</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ METHOD SUMMARY ============ -->
+  <div class="method-strip">
+    <div class="method-cell">
+      <span class="m get">GET</span>
+      <p>Serves static files, resolves directory indexes, and renders autoindex listings when enabled.</p>
+    </div>
+    <div class="method-cell">
+      <span class="m post">POST</span>
+      <p>Accepts multipart uploads, streams the body against <code>Content-Length</code>, and enforces <code>client_max_body_size</code>.</p>
+    </div>
+    <div class="method-cell">
+      <span class="m delete">DELETE</span>
+      <p>Removes a resource from disk when the target location permits it.</p>
+    </div>
   </div>
 
   <!-- ============ FILE MANAGER ============ -->
   <div class="section">
     <div class="section-head">
-      <span class="prompt">&gt;</span>
-      <h2>file manager — /upload</h2>
+      <h2>File manager</h2>
+      <span class="hint">/upload — POST to add, DELETE to remove, GET for the autoindex listing</span>
+    </div>
+
+    <div class="status-msg" id="status-msg" hidden>
+      <span class="code" id="status-code"></span>
+      <span id="status-text"></span>
     </div>
 
     <div class="grid-2">
-      <div class="term">
-        <div class="term-bar">
-          <span class="term-dot live"></span>
-          <span class="term-dot"></span>
-          <span class="term-dot"></span>
-          <span class="term-title">POST /upload</span>
-        </div>
-        <div class="term-body">
+      <div class="panel">
+        <div class="panel-header"><span class="dot live"></span>POST /upload</div>
+        <div class="panel-body">
           <label class="dropzone" id="dropzone" for="file-input">
             <span class="icon">↑</span>
             drop a file here, or click to browse
             <input type="file" id="file-input">
             <div class="fname" id="fname"></div>
           </label>
-          <button class="btn full" id="upload-btn" disabled>upload file</button>
+          <button class="btn primary full" id="upload-btn" disabled>Upload file</button>
         </div>
       </div>
 
-      <div class="term">
-        <div class="term-bar">
-          <span class="term-dot live"></span>
-          <span class="term-dot"></span>
-          <span class="term-dot"></span>
-          <span class="term-title">GET /upload/</span>
+      <div class="panel">
+        <div class="panel-header">
+          <span class="dot live"></span>GET /upload/
           <span style="margin-left:auto;">
-            <button class="mini-btn" id="refresh-btn">↻ refresh</button>
+            <button class="mini-btn" id="refresh-btn">refresh</button>
           </span>
         </div>
-        <div class="term-body" id="file-list">
+        <div class="panel-body" id="file-list">
           <div class="empty-hint">loading…</div>
         </div>
       </div>
@@ -68,94 +94,46 @@
   <!-- ============ CGI RUNNER ============ -->
   <div class="section">
     <div class="section-head">
-      <span class="prompt">&gt;</span>
-      <h2>cgi — fork / execve</h2>
+      <h2>CGI</h2>
+      <span class="hint">fork + execve, output piped back through the response</span>
     </div>
-    <div class="term">
-      <div class="term-bar">
-        <span class="term-dot amber"></span>
-        <span class="term-dot"></span>
-        <span class="term-dot"></span>
-        <span class="term-title">GET /cgi/info.py</span>
-      </div>
-      <div class="term-body">
+    <div class="panel">
+      <div class="panel-header"><span class="dot"></span>GET /cgi/info.py</div>
+      <div class="panel-body">
         <p style="color:var(--text-muted); font-size:13px; margin-bottom:10px;">
-          runs <span style="color:var(--green)">cgi/info.py</span> through the CGI handler
-          (fork + execve + pipes) and prints what the script sees via its environment.
+          Executes <code style="font-family:var(--font-mono); color:var(--text);">cgi/info.py</code>
+          through the CGI handler and prints the environment the script received.
         </p>
-        <button class="btn amber" id="cgi-btn">▶ execute script</button>
+        <button class="btn" id="cgi-btn">Run script</button>
         <div class="cgi-output" id="cgi-output"></div>
       </div>
     </div>
   </div>
 
-  <!-- ============ REQUEST TESTER ============ -->
+  <!-- ============ REQUEST HISTORY ============ -->
   <div class="section">
     <div class="section-head">
-      <span class="prompt">&gt;</span>
-      <h2>request tester</h2>
+      <h2>Request history</h2>
+      <span class="hint">every action above, logged as it happens</span>
     </div>
-    <div class="term">
-      <div class="term-bar">
-        <span class="term-dot live"></span>
-        <span class="term-dot"></span>
-        <span class="term-dot"></span>
-        <span class="term-title">send any request</span>
-      </div>
-      <div class="term-body">
-        <div class="field-row">
-          <div class="field" style="max-width:130px;">
-            <label>method</label>
-            <select id="t-method">
-              <option>GET</option>
-              <option>POST</option>
-              <option>DELETE</option>
-            </select>
-          </div>
-          <div class="field">
-            <label>path</label>
-            <input type="text" id="t-path" value="/upload/test.txt">
-          </div>
-        </div>
-        <div class="field" id="t-file-field" style="display:none;">
-          <label>file (for POST)</label>
-          <input type="file" id="t-file">
-        </div>
-        <button class="btn full" id="t-send">send request</button>
-        <div class="resp-preview" id="t-preview"></div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ============ LIVE LOG ============ -->
-  <div class="section">
-    <div class="section-head">
-      <span class="prompt">&gt;</span>
-      <h2>live request log</h2>
-    </div>
-    <div class="term">
-      <div class="term-bar">
-        <span class="term-dot live"></span>
-        <span class="term-dot"></span>
-        <span class="term-dot"></span>
-        <span class="term-title">access.log</span>
-      </div>
-      <div class="term-body" id="live-log">
+    <div class="panel">
+      <div class="panel-header"><span class="dot live"></span>local session log</div>
+      <div class="panel-body" id="live-log">
         <div class="log-empty">waiting for activity…</div>
       </div>
     </div>
   </div>
 
   <div class="footer">
-    <span>webserv/1.0 · single-threaded · poll()-driven</span>
-    <span>all requests on this page are real — check the server's own logs</span>
+    <span>webserv — single-threaded, poll()-driven, C++98</span>
+    <span><a href="/errors/">error pages</a></span>
   </div>
 
 </div>
 
 <script>
 /* ---------------------------------------------------------------------
-   live log
+   request history log
    --------------------------------------------------------------------*/
 const logPanel = document.getElementById('live-log');
 let logCount = 0;
@@ -175,12 +153,54 @@ function logRequest(method, path, status, note) {
   row.className = 'log-line';
   row.innerHTML =
     '<span class="lg-time">' + time + '</span>' +
-    '<span class="method ' + method.toLowerCase() + '">' + method + '</span>' +
+    '<span class="lg-method ' + method.toLowerCase() + '">' + method + '</span>' +
     '<span class="lg-path">' + path + '</span>' +
     '<span class="lg-status ' + statusClass(status) + '">' + (status || 'ERR') + '</span>' +
     '<span class="lg-note">' + (note || '') + '</span>';
   logPanel.prepend(row);
   while (logPanel.children.length > 14) logPanel.removeChild(logPanel.lastChild);
+}
+
+/* ---------------------------------------------------------------------
+   status banner — turns a response into a plain-language result
+   --------------------------------------------------------------------*/
+const statusMsg  = document.getElementById('status-msg');
+const statusCode = document.getElementById('status-code');
+const statusText = document.getElementById('status-text');
+
+// action: 'upload' | 'delete' | 'list' — tailors the wording per action
+function describeStatus(status, action) {
+  const subject = { upload: 'upload', delete: 'file', list: 'listing' }[action] || 'request';
+  switch (true) {
+    case status >= 200 && status < 300:
+      return { cls: 'ok', text: {
+        upload: 'File uploaded successfully.',
+        delete: 'File deleted successfully.',
+        list:   'Listing loaded successfully.'
+      }[action] || 'Success.' };
+    case status === 403:
+      return { cls: 'forbidden', text: `Forbidden — no permission to ${action === 'delete' ? 'delete' : action === 'upload' ? 'write to' : 'read'} this ${subject}.` };
+    case status === 404:
+      return { cls: 'notfound', text: `Not found — the ${subject === 'file' ? 'file' : 'target'} does not exist.` };
+    case status === 405:
+      return { cls: 'warn', text: `Method not allowed for this ${subject}.` };
+    case status === 413:
+      return { cls: 'warn', text: 'Payload too large — file exceeds the server\'s size limit.' };
+    case status === 500:
+      return { cls: 'err', text: 'Server error while processing the request.' };
+    case status === 0:
+      return { cls: 'err', text: 'Network error — could not reach the server.' };
+    default:
+      return { cls: 'warn', text: `Unexpected response for this ${subject}.` };
+  }
+}
+
+function showStatus(status, action) {
+  const { cls, text } = describeStatus(status, action);
+  statusMsg.className = 'status-msg ' + cls;
+  statusMsg.hidden = false;
+  statusCode.textContent = status || 'ERR';
+  statusText.textContent = text;
 }
 
 /* ---------------------------------------------------------------------
@@ -222,14 +242,16 @@ uploadBtn.addEventListener('click', async () => {
   const fd = new FormData();
   fd.append('file', file, file.name);
   uploadBtn.disabled = true;
-  uploadBtn.textContent = 'uploading…';
+  uploadBtn.textContent = 'Uploading…';
   try {
     const res = await fetch('/upload', { method: 'POST', body: fd });
+    showStatus(res.status, 'upload');
     logRequest('POST', '/upload', res.status, res.ok ? 'saved ' + file.name : 'upload rejected');
   } catch (err) {
+    showStatus(0, 'upload');
     logRequest('POST', '/upload', 0, err.message);
   }
-  uploadBtn.textContent = 'upload file';
+  uploadBtn.textContent = 'Upload file';
   fileInput.value = '';
   fnameEl.textContent = '';
   refreshFiles();
@@ -247,10 +269,12 @@ async function refreshFiles() {
       .filter(href => href && href !== '../' && !href.endsWith('/'))
       .map(href => decodeURIComponent(href));
 
+    showStatus(res.status, 'list');
     logRequest('GET', '/upload/', res.status, files.length + ' file(s)');
     renderFiles(files);
   } catch (err) {
     fileListEl.innerHTML = '<div class="empty-hint">could not reach /upload/</div>';
+    showStatus(0, 'list');
     logRequest('GET', '/upload/', 0, err.message);
   }
 }
@@ -266,7 +290,7 @@ function renderFiles(files) {
     const tr = document.createElement('tr');
 
     const tdName = document.createElement('td');
-    tdName.className = 'path';
+    tdName.className = 'fname-cell';
     tdName.textContent = name;
 
     const tdActions = document.createElement('td');
@@ -276,11 +300,11 @@ function renderFiles(files) {
     getLink.className = 'mini-btn';
     getLink.href = '/upload/' + encodeURIComponent(name);
     getLink.target = '_blank';
-    getLink.textContent = '↓ get';
+    getLink.textContent = 'get';
 
     const delBtn = document.createElement('button');
     delBtn.className = 'mini-btn danger';
-    delBtn.textContent = '✕ delete';
+    delBtn.textContent = 'delete';
     delBtn.addEventListener('click', () => deleteFile(name));
 
     tdActions.appendChild(getLink);
@@ -298,8 +322,10 @@ async function deleteFile(name) {
   const path = '/upload/' + encodeURIComponent(name);
   try {
     const res = await fetch(path, { method: 'DELETE' });
+    showStatus(res.status, 'delete');
     logRequest('DELETE', path, res.status, res.ok ? 'removed' : 'delete failed');
   } catch (err) {
+    showStatus(0, 'delete');
     logRequest('DELETE', path, 0, err.message);
   }
   refreshFiles();
@@ -326,43 +352,6 @@ cgiBtn.addEventListener('click', async () => {
     logRequest('GET', '/cgi/info.py', 0, err.message);
   }
   cgiBtn.disabled = false;
-});
-
-/* ---------------------------------------------------------------------
-   request tester
-   --------------------------------------------------------------------*/
-const tMethod = document.getElementById('t-method');
-const tPath   = document.getElementById('t-path');
-const tFile   = document.getElementById('t-file');
-const tFileField = document.getElementById('t-file-field');
-const tSend   = document.getElementById('t-send');
-const tPreview = document.getElementById('t-preview');
-
-tMethod.addEventListener('change', () => {
-  tFileField.style.display = tMethod.value === 'POST' ? 'block' : 'none';
-});
-
-tSend.addEventListener('click', async () => {
-  const method = tMethod.value;
-  const path = tPath.value || '/';
-  tSend.disabled = true;
-  try {
-    let res;
-    if (method === 'POST') {
-      const fd = new FormData();
-      if (tFile.files.length) fd.append('file', tFile.files[0], tFile.files[0].name);
-      res = await fetch(path, { method: 'POST', body: fd });
-    } else {
-      res = await fetch(path, { method });
-    }
-    const text = await res.text();
-    tPreview.textContent = 'HTTP ' + res.status + '\n\n' + text.slice(0, 600);
-    logRequest(method, path, res.status, text.slice(0, 40).replace(/\s+/g, ' '));
-  } catch (err) {
-    tPreview.textContent = 'network error: ' + err.message;
-    logRequest(method, path, 0, err.message);
-  }
-  tSend.disabled = false;
 });
 
 /* initial load */

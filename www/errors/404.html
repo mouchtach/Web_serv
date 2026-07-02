@@ -8,29 +8,14 @@
 </head>
 <body class="error-page">
 <div class="error-card">
-
-  <div class="term" style="margin-bottom:26px;">
-    <div class="term-bar">
-      <span class="term-dot amber"></span>
-      <span class="term-dot"></span>
-      <span class="term-dot"></span>
-      <span class="term-title">lookup — miss</span>
-    </div>
-  </div>
-
-  <div class="error-code warn">404</div>
-  <div class="error-status">Not Found</div>
-
+  <div class="error-icon">404</div>
+  <div class="error-code warn">Not Found</div>
+  <div class="error-status">Nothing matches this path</div>
   <div class="error-msg">
-    <div class="prompt-line"><span>$</span> stat() found nothing at this path</div>
-    no file or directory matches the requested URI under this location's root.
-    check the address, or confirm the route in your config.
+    <div class="prompt-line"><span>&gt;</span> stat() found nothing at this location</div>
+    No file or directory matches the requested URI under this location's root. Check the address, or confirm the route in your config.
   </div>
-
-  <div class="error-actions">
-    <a href="/">cd /</a>
-  </div>
-
+  <div class="error-actions"><a href="/">Back to home</a></div>
 </div>
 </body>
 </html>
