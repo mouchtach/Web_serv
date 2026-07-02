@@ -3,7 +3,7 @@
 #include <iostream>
 // ./we    
 int main(int argc, char **argv) {
-    // signal(SIGPIPE, SIG_IGN);f
+    signal(SIGPIPE, SIG_IGN);
 
     if(argc == 1 || argc == 2)
     {

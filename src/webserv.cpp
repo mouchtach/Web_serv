@@ -112,6 +112,7 @@ void Webserv::Start() {
         if (ret < 0) {
             throw std::runtime_error("Poll failed");
         }
+        std::vector<int> toRemove;
         for (size_t i = 0; i < _pollfds.size(); ++i) 
         {
             if (_pollfds[i].revents & POLLIN) 
@@ -150,9 +151,12 @@ void Webserv::Start() {
                     removeClient(_pollfds[i].fd);
                 }
             } else if (_pollfds[i].revents & (POLLERR | POLLHUP | POLLNVAL)) {
-                // std::cerr << "\033[31mError on fd " << _pollfds[i].fd << ", closing connection\033[0m" << std::endl;
-                removeClient(_pollfds[i].fd);
+               std::cerr << "\033[31mError on fd " << _pollfds[i].fd << "\033[0m" << std::endl;
+                toRemove.push_back(_pollfds[i].fd);
             }
+        }
+        for (size_t j = 0; j < toRemove.size(); ++j) {
+            removeClient(toRemove[j]);
         }
     }
 }

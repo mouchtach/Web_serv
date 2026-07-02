@@ -10,10 +10,7 @@ Client::Client(int fd, const Config &config) : _fd(fd), _config(config) {
 }
 
 Client::~Client() {
-    if (_fd >= 0) {
-        close(_fd);
-    }
-} 
+}
 
 // getters
 int Client::getFd() const { return _fd; }

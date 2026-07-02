@@ -29,7 +29,7 @@ Server::Server(const Config &config) : _config(config) {
 }
 
 Server::~Server() {
-    if (_fd >= 0) {
-        close(_fd);
-    }
+    // if (_fd >= 0) {
+    //     close(_fd);
+    // }
 }
