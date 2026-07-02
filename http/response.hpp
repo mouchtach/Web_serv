@@ -18,9 +18,10 @@ private:
     std::string contentType;
     std::string _statusCode;
     std::string _statusMessage;
+    size_t _sentBytes;
 
 public:
-    Response() : _rawResponse("") {};
+    Response() : _rawResponse(""), _sentBytes(0) {};
     void setConfig(const Config &config) { _config = config; }
 
     std::string statusCodeString(int code) {
@@ -127,11 +128,16 @@ public:
     void setBody(const std::string& body) {
         _body = body;
     }
+    void setSentBytes(size_t bytes) { _sentBytes = bytes; }
+    size_t getSentBytes() const { return _sentBytes; }
+    void addBytesSent(size_t n) { _sentBytes += n; }
+    bool isFullySent() const { return _sentBytes >= _rawResponse.size(); }
+    void resetSendState() { _sentBytes = 0; }
     void setversion(const std::string& version) {
         _version = version;
     }
     void buildResponse() {
-
+        _sentBytes = 0;
         _header["Date"] =  getCurrentDate();
         _header["Server"] = "webserv/1.0";
         _rawResponse = _version + " " + _statusCode + " " + _statusMessage + "\r\n";

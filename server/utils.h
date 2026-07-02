@@ -10,3 +10,4 @@ std::string getMimeType(const std::string& path);
 std::string appendPath(const std::string& root, const std::string& path);
 std::string extractFileName(const std::string& body);
 std::string extractBodyfile(const std::string& body);
+bool isPathsafe(const std::string &uri);

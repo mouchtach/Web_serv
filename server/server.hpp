@@ -10,6 +10,7 @@ private:
 public:
     Server() : _fd(-1) {}
     Server(const Config &config);
+    ~Server();
     
     int getFd() const { return _fd; }
     const Config& getConfig() const { return _config; }

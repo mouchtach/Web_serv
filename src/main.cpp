@@ -3,13 +3,13 @@
 #include <iostream>
 // ./we    
 int main(int argc, char **argv) {
-    // signal(SIGPIPE, SIG_IGN);f
+    signal(SIGPIPE, SIG_IGN);
 
     if(argc == 1 || argc == 2)
     {
         std::string configFile ;
         if (argc == 1) {
-            configFile = "config/default.conf";
+            configFile = "conf/default.conf";
         } else {
             configFile = argv[1];
         }

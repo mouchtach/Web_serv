@@ -6,18 +6,20 @@
 
 class LocationConfig;
 
-class Client : public Request, public Response
+class Client
 {
 private:
   int             _fd;
   Config          _config;
-  Request         _request;
-  Response        _response;
   LocationConfig  _targetLocation;
-
+  
+  
 public:
   Client();
+  Request         _request;
+  Response        _response;
   Client(int fd, const Config &config);
+  ~Client();
 
 
   // getters

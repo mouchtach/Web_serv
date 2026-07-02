@@ -27,11 +27,10 @@ private:
     
 public:
 
-
     bool _complete;
     void setComplete(bool complete) { _complete = complete; }
     bool isComplete() const { return _complete; }
-    Request() : _rawRequest("") {};
+    Request() : _rawRequest(""), _complete(false) {};
     void appendrequest(const std::string& data) {
         _rawRequest.append(data);
     }
@@ -51,9 +50,9 @@ public:
     const std::string& getVersion() const;
     const std::string& getBody() const;
     const std::map<std::string, std::string>& getHeaders() const;
-    std::string getHeader(const std::string& key) const;
+    // std::string getHeader(const std::string& key) const;
     size_t getContentLength() const { return _contentLength; }
-    void displayrequest();
+    // void displayrequest();
     bool validkey(const std::string& key) const;
 
     void parseRequest();

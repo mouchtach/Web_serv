@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>405 — Method Not Allowed</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="error-page">
+<div class="error-card">
+  <div class="error-icon">405</div>
+  <div class="error-code warn">Method Not Allowed</div>
+  <div class="error-status">This route rejected the method</div>
+  <div class="error-msg">
+    <div class="prompt-line"><span>&gt;</span> method not permitted on this location</div>
+    This route only accepts the methods listed in its <code style="font-family:var(--font-mono); color:var(--text);">methods</code> directive. Check the config block for this path and retry with an allowed verb.
+  </div>
+  <div class="error-actions"><a href="/">Back to home</a></div>
+</div>
+</body>
+</html>

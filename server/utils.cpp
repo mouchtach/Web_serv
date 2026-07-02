@@ -230,3 +230,12 @@ std::string extractBodyfile(const std::string& body) {
     return fileContent;
 }
 
+#include <iostream>
+
+bool isPathsafe(const std::string &uri) {
+  if (uri.find("..") != std::string::npos)
+    return false;
+  if (uri.find("//") != std::string::npos)
+    return false;
+  return true;
+}
