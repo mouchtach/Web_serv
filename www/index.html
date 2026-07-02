@@ -1,219 +1,372 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8"/>
-  <title>Webserv Tester</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      background: #111; color: #eee;
-      font-family: monospace; font-size: 14px;
-      display: flex; flex-direction: column;
-      align-items: center; padding: 40px 20px; gap: 24px;
-      min-height: 100vh;
-    }
-    h1 { font-size: 1.2rem; color: #4f8ef7; letter-spacing: 2px; }
-
-    /* PANELS */
-    .panel {
-      background: #1a1a1a; border: 1px solid #2a2a2a;
-      border-radius: 8px; padding: 20px; width: 100%; max-width: 520px;
-    }
-    .panel h2 {
-      font-size: 0.75rem; letter-spacing: 0.1em; text-transform: uppercase;
-      margin-bottom: 14px; padding-bottom: 8px; border-bottom: 1px solid #2a2a2a;
-    }
-    .panel h2.get    { color: #4f8ef7; }
-    .panel h2.post   { color: #34d399; }
-    .panel h2.delete { color: #f87171; }
-
-    /* INPUTS */
-    input[type="text"] {
-      width: 100%; background: #111; border: 1px solid #333;
-      border-radius: 5px; color: #eee; font-family: monospace;
-      font-size: 13px; padding: 7px 10px; outline: none;
-      transition: border-color 0.15s;
-    }
-    input[type="text"]:focus { border-color: #4f8ef7; }
-    input[type="file"] { color: #aaa; font-size: 13px; }
-
-    label { font-size: 0.75rem; color: #666; display: block; margin-bottom: 4px; margin-top: 10px; }
-    label:first-child { margin-top: 0; }
-
-    /* BUTTONS */
-    button {
-      margin-top: 12px; width: 100%;
-      border: none; border-radius: 5px; cursor: pointer;
-      font-family: monospace; font-size: 13px; font-weight: bold;
-      padding: 9px; transition: opacity 0.15s;
-    }
-    button:hover { opacity: 0.8; }
-    .btn-get    { background: #4f8ef7; color: #fff; }
-    .btn-post   { background: #34d399; color: #000; }
-    .btn-delete { background: #f87171; color: #fff; }
-
-    /* POPUP OVERLAY */
-    #overlay {
-      display: none; position: fixed; inset: 0;
-      background: rgba(0,0,0,0.7); z-index: 100;
-      align-items: center; justify-content: center;
-    }
-    #overlay.show { display: flex; }
-
-    #popup {
-      background: #1a1a1a; border-radius: 10px;
-      padding: 24px; width: 90%; max-width: 460px;
-      border: 1px solid #333; position: relative;
-    }
-
-    #popup-status {
-      font-size: 1.6rem; font-weight: bold; margin-bottom: 4px;
-    }
-    #popup-status.ok     { color: #34d399; }
-    #popup-status.err    { color: #f87171; }
-    #popup-status.redir  { color: #fbbf24; }
-
-    #popup-method {
-      font-size: 0.7rem; color: #666; letter-spacing: 0.1em;
-      text-transform: uppercase; margin-bottom: 14px;
-    }
-
-    #popup-body {
-      background: #111; border: 1px solid #2a2a2a;
-      border-radius: 6px; padding: 12px;
-      font-size: 12px; color: #aaa;
-      max-height: 200px; overflow-y: auto;
-      white-space: pre-wrap; word-break: break-word;
-      margin-bottom: 16px;
-    }
-
-    #popup-close {
-      width: 100%; background: #222; color: #eee;
-      border: 1px solid #333; border-radius: 5px;
-      font-family: monospace; font-size: 13px;
-      padding: 8px; cursor: pointer;
-    }
-    #popup-close:hover { background: #2a2a2a; }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>webserv — console</title>
+<link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
+<div class="wrap">
 
-<h1>WEBSERV TESTER</h1>
-
-<!-- GET -->
-<div class="panel">
-  <h2 class="get">GET — fetch a file</h2>
-  <label>Path</label>
-  <input type="text" id="get-path" value="/index.html" placeholder="/index.html"/>
-  <button class="btn-get" onclick="doGet()">Send GET</button>
-</div>
-
-<!-- POST -->
-<div class="panel">
-  <h2 class="post">POST — upload a file</h2>
-  <label>Upload to path</label>
-  <input type="text" id="post-path" value="/upload" placeholder="/upload"/>
-  <label>File</label>
-  <input type="file" id="post-file"/>
-  <button class="btn-post" onclick="doPost()">Send POST</button>
-</div>
-
-<!-- DELETE -->
-<div class="panel">
-  <h2 class="delete">DELETE — remove a file</h2>
-  <label>Path to delete</label>
-  <input type="text" id="delete-path" value="/upload/test.txt" placeholder="/upload/test.txt"/>
-  <button class="btn-delete" onclick="doDelete()">Send DELETE</button>
-</div>
-
-<!-- POPUP -->
-<div id="overlay" onclick="closePopup(event)">
-  <div id="popup">
-    <div id="popup-status"></div>
-    <div id="popup-method"></div>
-    <div id="popup-body"></div>
-    <button id="popup-close" onclick="closePopup()">Close</button>
+  <div class="topbar">
+    <span>root@webserv:~$</span>
+    <span class="status-pill"><span class="dot"></span>listening</span>
   </div>
+
+  <div class="hero">
+    <pre class="ascii">┌──────────────────────────────┐
+│  HTTP/1.1 · C++98 · nginx‑lite│
+└──────────────────────────────┘</pre>
+    <div class="hero-title">WEBSERV<span class="cursor"></span></div>
+    <div class="hero-sub">live console — every action below is a real request against this server.</div>
+  </div>
+
+  <!-- ============ FILE MANAGER ============ -->
+  <div class="section">
+    <div class="section-head">
+      <span class="prompt">&gt;</span>
+      <h2>file manager — /upload</h2>
+    </div>
+
+    <div class="grid-2">
+      <div class="term">
+        <div class="term-bar">
+          <span class="term-dot live"></span>
+          <span class="term-dot"></span>
+          <span class="term-dot"></span>
+          <span class="term-title">POST /upload</span>
+        </div>
+        <div class="term-body">
+          <label class="dropzone" id="dropzone" for="file-input">
+            <span class="icon">↑</span>
+            drop a file here, or click to browse
+            <input type="file" id="file-input">
+            <div class="fname" id="fname"></div>
+          </label>
+          <button class="btn full" id="upload-btn" disabled>upload file</button>
+        </div>
+      </div>
+
+      <div class="term">
+        <div class="term-bar">
+          <span class="term-dot live"></span>
+          <span class="term-dot"></span>
+          <span class="term-dot"></span>
+          <span class="term-title">GET /upload/</span>
+          <span style="margin-left:auto;">
+            <button class="mini-btn" id="refresh-btn">↻ refresh</button>
+          </span>
+        </div>
+        <div class="term-body" id="file-list">
+          <div class="empty-hint">loading…</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ CGI RUNNER ============ -->
+  <div class="section">
+    <div class="section-head">
+      <span class="prompt">&gt;</span>
+      <h2>cgi — fork / execve</h2>
+    </div>
+    <div class="term">
+      <div class="term-bar">
+        <span class="term-dot amber"></span>
+        <span class="term-dot"></span>
+        <span class="term-dot"></span>
+        <span class="term-title">GET /cgi/info.py</span>
+      </div>
+      <div class="term-body">
+        <p style="color:var(--text-muted); font-size:13px; margin-bottom:10px;">
+          runs <span style="color:var(--green)">cgi/info.py</span> through the CGI handler
+          (fork + execve + pipes) and prints what the script sees via its environment.
+        </p>
+        <button class="btn amber" id="cgi-btn">▶ execute script</button>
+        <div class="cgi-output" id="cgi-output"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ REQUEST TESTER ============ -->
+  <div class="section">
+    <div class="section-head">
+      <span class="prompt">&gt;</span>
+      <h2>request tester</h2>
+    </div>
+    <div class="term">
+      <div class="term-bar">
+        <span class="term-dot live"></span>
+        <span class="term-dot"></span>
+        <span class="term-dot"></span>
+        <span class="term-title">send any request</span>
+      </div>
+      <div class="term-body">
+        <div class="field-row">
+          <div class="field" style="max-width:130px;">
+            <label>method</label>
+            <select id="t-method">
+              <option>GET</option>
+              <option>POST</option>
+              <option>DELETE</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>path</label>
+            <input type="text" id="t-path" value="/upload/test.txt">
+          </div>
+        </div>
+        <div class="field" id="t-file-field" style="display:none;">
+          <label>file (for POST)</label>
+          <input type="file" id="t-file">
+        </div>
+        <button class="btn full" id="t-send">send request</button>
+        <div class="resp-preview" id="t-preview"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ LIVE LOG ============ -->
+  <div class="section">
+    <div class="section-head">
+      <span class="prompt">&gt;</span>
+      <h2>live request log</h2>
+    </div>
+    <div class="term">
+      <div class="term-bar">
+        <span class="term-dot live"></span>
+        <span class="term-dot"></span>
+        <span class="term-dot"></span>
+        <span class="term-title">access.log</span>
+      </div>
+      <div class="term-body" id="live-log">
+        <div class="log-empty">waiting for activity…</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <span>webserv/1.0 · single-threaded · poll()-driven</span>
+    <span>all requests on this page are real — check the server's own logs</span>
+  </div>
+
 </div>
 
 <script>
-  const STATUS = {
-    200: 'OK',
-    301: 'Moved Permanently',
-    400: 'Bad Request',
-    403: 'Forbidden',
-    404: 'Not Found',
-    405: 'Method Not Allowed',
-    413: 'Payload Too Large',
-    500: 'Internal Server Error',
-    501: 'Not Implemented',
-    502: 'Bad Gateway',
-    505: 'HTTP Version Not Supported',
-  };
+/* ---------------------------------------------------------------------
+   live log
+   --------------------------------------------------------------------*/
+const logPanel = document.getElementById('live-log');
+let logCount = 0;
 
-  function statusText(code) {
-    return STATUS[code] || 'Unknown Status';
+function statusClass(status) {
+  if (status === 0) return 'err';
+  if (status >= 200 && status < 300) return 'ok';
+  if (status >= 300 && status < 400) return 'redir';
+  return 'warn';
+}
+
+function logRequest(method, path, status, note) {
+  if (logCount === 0) logPanel.innerHTML = '';
+  logCount++;
+  const time = new Date().toLocaleTimeString('en-GB', { hour12: false });
+  const row = document.createElement('div');
+  row.className = 'log-line';
+  row.innerHTML =
+    '<span class="lg-time">' + time + '</span>' +
+    '<span class="method ' + method.toLowerCase() + '">' + method + '</span>' +
+    '<span class="lg-path">' + path + '</span>' +
+    '<span class="lg-status ' + statusClass(status) + '">' + (status || 'ERR') + '</span>' +
+    '<span class="lg-note">' + (note || '') + '</span>';
+  logPanel.prepend(row);
+  while (logPanel.children.length > 14) logPanel.removeChild(logPanel.lastChild);
+}
+
+/* ---------------------------------------------------------------------
+   file manager
+   --------------------------------------------------------------------*/
+const dropzone   = document.getElementById('dropzone');
+const fileInput  = document.getElementById('file-input');
+const fnameEl    = document.getElementById('fname');
+const uploadBtn  = document.getElementById('upload-btn');
+const fileListEl = document.getElementById('file-list');
+const refreshBtn = document.getElementById('refresh-btn');
+
+fileInput.addEventListener('change', () => {
+  if (fileInput.files.length) {
+    fnameEl.textContent = fileInput.files[0].name;
+    uploadBtn.disabled = false;
+  } else {
+    fnameEl.textContent = '';
+    uploadBtn.disabled = true;
   }
+});
 
-  function showPopup(method, path, status, body) {
-    const isOk    = status >= 200 && status < 300;
-    const isRedir = status >= 300 && status < 400;
-
-    document.getElementById('popup-status').textContent =
-      status + ' — ' + statusText(status);
-    document.getElementById('popup-status').className =
-      isOk ? 'ok' : isRedir ? 'redir' : 'err';
-
-    document.getElementById('popup-method').textContent =
-      method + '  ' + path;
-
-    document.getElementById('popup-body').textContent =
-      body.trim() || '(empty body)';
-
-    document.getElementById('overlay').classList.add('show');
+['dragover', 'dragenter'].forEach(evt =>
+  dropzone.addEventListener(evt, e => { e.preventDefault(); dropzone.classList.add('drag'); })
+);
+['dragleave', 'drop'].forEach(evt =>
+  dropzone.addEventListener(evt, e => { e.preventDefault(); dropzone.classList.remove('drag'); })
+);
+dropzone.addEventListener('drop', e => {
+  if (e.dataTransfer.files.length) {
+    fileInput.files = e.dataTransfer.files;
+    fileInput.dispatchEvent(new Event('change'));
   }
+});
 
-  function closePopup(e) {
-    // close only if clicking overlay background or the button
-    if (e && e.target !== document.getElementById('overlay') &&
-        e.target !== document.getElementById('popup-close')) return;
-    document.getElementById('overlay').classList.remove('show');
+uploadBtn.addEventListener('click', async () => {
+  if (!fileInput.files.length) return;
+  const file = fileInput.files[0];
+  const fd = new FormData();
+  fd.append('file', file, file.name);
+  uploadBtn.disabled = true;
+  uploadBtn.textContent = 'uploading…';
+  try {
+    const res = await fetch('/upload', { method: 'POST', body: fd });
+    logRequest('POST', '/upload', res.status, res.ok ? 'saved ' + file.name : 'upload rejected');
+  } catch (err) {
+    logRequest('POST', '/upload', 0, err.message);
   }
+  uploadBtn.textContent = 'upload file';
+  fileInput.value = '';
+  fnameEl.textContent = '';
+  refreshFiles();
+});
 
-  // ── GET ──────────────────────────────────────
-  function doGet() {
-    const path = document.getElementById('get-path').value || '/';
-    fetch(path, { method: 'GET' })
-      .then(r => r.text().then(body => showPopup('GET', path, r.status, body)))
-      .catch(err => showPopup('GET', path, 0, 'Network error: ' + err.message));
+async function refreshFiles() {
+  fileListEl.innerHTML = '<div class="empty-hint">loading…</div>';
+  try {
+    const res = await fetch('/upload/');
+    const html = await res.text();
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const anchors = Array.from(doc.querySelectorAll('a'));
+    const files = anchors
+      .map(a => a.getAttribute('href'))
+      .filter(href => href && href !== '../' && !href.endsWith('/'))
+      .map(href => decodeURIComponent(href));
+
+    logRequest('GET', '/upload/', res.status, files.length + ' file(s)');
+    renderFiles(files);
+  } catch (err) {
+    fileListEl.innerHTML = '<div class="empty-hint">could not reach /upload/</div>';
+    logRequest('GET', '/upload/', 0, err.message);
   }
+}
 
-  // ── POST ─────────────────────────────────────
-  function doPost() {
-    const path = document.getElementById('post-path').value || '/';
-    const fileInput = document.getElementById('post-file');
+function renderFiles(files) {
+  if (!files.length) {
+    fileListEl.innerHTML = '<div class="empty-hint">empty — nothing uploaded yet</div>';
+    return;
+  }
+  const table = document.createElement('table');
+  const tbody = document.createElement('tbody');
+  files.forEach(name => {
+    const tr = document.createElement('tr');
 
-    if (!fileInput.files.length) {
-      showPopup('POST', path, 0, 'No file selected.');
-      return;
+    const tdName = document.createElement('td');
+    tdName.className = 'path';
+    tdName.textContent = name;
+
+    const tdActions = document.createElement('td');
+    tdActions.style.textAlign = 'right';
+
+    const getLink = document.createElement('a');
+    getLink.className = 'mini-btn';
+    getLink.href = '/upload/' + encodeURIComponent(name);
+    getLink.target = '_blank';
+    getLink.textContent = '↓ get';
+
+    const delBtn = document.createElement('button');
+    delBtn.className = 'mini-btn danger';
+    delBtn.textContent = '✕ delete';
+    delBtn.addEventListener('click', () => deleteFile(name));
+
+    tdActions.appendChild(getLink);
+    tdActions.appendChild(delBtn);
+    tr.appendChild(tdName);
+    tr.appendChild(tdActions);
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+  fileListEl.innerHTML = '';
+  fileListEl.appendChild(table);
+}
+
+async function deleteFile(name) {
+  const path = '/upload/' + encodeURIComponent(name);
+  try {
+    const res = await fetch(path, { method: 'DELETE' });
+    logRequest('DELETE', path, res.status, res.ok ? 'removed' : 'delete failed');
+  } catch (err) {
+    logRequest('DELETE', path, 0, err.message);
+  }
+  refreshFiles();
+}
+
+refreshBtn.addEventListener('click', refreshFiles);
+
+/* ---------------------------------------------------------------------
+   cgi runner
+   --------------------------------------------------------------------*/
+const cgiBtn = document.getElementById('cgi-btn');
+const cgiOut = document.getElementById('cgi-output');
+
+cgiBtn.addEventListener('click', async () => {
+  cgiBtn.disabled = true;
+  cgiOut.textContent = 'running…';
+  try {
+    const res = await fetch('/cgi/info.py');
+    const text = await res.text();
+    cgiOut.textContent = text || '(empty output)';
+    logRequest('GET', '/cgi/info.py', res.status, res.ok ? 'script executed' : 'cgi failed');
+  } catch (err) {
+    cgiOut.textContent = 'could not reach /cgi/info.py\n' + err.message;
+    logRequest('GET', '/cgi/info.py', 0, err.message);
+  }
+  cgiBtn.disabled = false;
+});
+
+/* ---------------------------------------------------------------------
+   request tester
+   --------------------------------------------------------------------*/
+const tMethod = document.getElementById('t-method');
+const tPath   = document.getElementById('t-path');
+const tFile   = document.getElementById('t-file');
+const tFileField = document.getElementById('t-file-field');
+const tSend   = document.getElementById('t-send');
+const tPreview = document.getElementById('t-preview');
+
+tMethod.addEventListener('change', () => {
+  tFileField.style.display = tMethod.value === 'POST' ? 'block' : 'none';
+});
+
+tSend.addEventListener('click', async () => {
+  const method = tMethod.value;
+  const path = tPath.value || '/';
+  tSend.disabled = true;
+  try {
+    let res;
+    if (method === 'POST') {
+      const fd = new FormData();
+      if (tFile.files.length) fd.append('file', tFile.files[0], tFile.files[0].name);
+      res = await fetch(path, { method: 'POST', body: fd });
+    } else {
+      res = await fetch(path, { method });
     }
-
-    const fd = new FormData();
-    fd.append('file', fileInput.files[0], fileInput.files[0].name);
-
-    // DO NOT set Content-Type manually — browser sets multipart boundary
-    fetch(path, { method: 'POST', body: fd })
-      .then(r => r.text().then(body => showPopup('POST', path, r.status, body)))
-      .catch(err => showPopup('POST', path, 0, 'Network error: ' + err.message));
+    const text = await res.text();
+    tPreview.textContent = 'HTTP ' + res.status + '\n\n' + text.slice(0, 600);
+    logRequest(method, path, res.status, text.slice(0, 40).replace(/\s+/g, ' '));
+  } catch (err) {
+    tPreview.textContent = 'network error: ' + err.message;
+    logRequest(method, path, 0, err.message);
   }
+  tSend.disabled = false;
+});
 
-  // ── DELETE ───────────────────────────────────
-  function doDelete() {
-    const path = document.getElementById('delete-path').value || '/';
-    fetch(path, { method: 'DELETE' })
-      .then(r => r.text().then(body => showPopup('DELETE', path, r.status, body)))
-      .catch(err => showPopup('DELETE', path, 0, 'Network error: ' + err.message));
-  }
+/* initial load */
+refreshFiles();
 </script>
 </body>
 </html>

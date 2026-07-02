@@ -1,1 +1,36 @@
-<html><body><h1>Error 500</h1></body></html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>500 — Internal Server Error</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="error-page">
+<div class="error-card">
+
+  <div class="term" style="margin-bottom:26px;">
+    <div class="term-bar">
+      <span class="term-dot red"></span>
+      <span class="term-dot red"></span>
+      <span class="term-dot"></span>
+      <span class="term-title">handler — crashed</span>
+    </div>
+  </div>
+
+  <div class="error-code err">500</div>
+  <div class="error-status">Internal Server Error</div>
+
+  <div class="error-msg">
+    <div class="prompt-line"><span>$</span> unhandled failure while processing the request</div>
+    something broke on the server's side while building this response.
+    check the server logs — this one isn't caused by anything you sent.
+  </div>
+
+  <div class="error-actions">
+    <a href="/">cd /</a>
+  </div>
+
+</div>
+</body>
+</html>

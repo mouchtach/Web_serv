@@ -1,1 +1,36 @@
-<html><body><h1>Error 400</h1></body></html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>400 — Bad Request</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="error-page">
+<div class="error-card">
+
+  <div class="term" style="margin-bottom:26px;">
+    <div class="term-bar">
+      <span class="term-dot red"></span>
+      <span class="term-dot"></span>
+      <span class="term-dot"></span>
+      <span class="term-title">parser — rejected</span>
+    </div>
+  </div>
+
+  <div class="error-code warn">400</div>
+  <div class="error-status">Bad Request</div>
+
+  <div class="error-msg">
+    <div class="prompt-line"><span>$</span> request rejected before it reached a handler</div>
+    the parser could not make sense of this request — a malformed request line,
+    an unparsable header, or a missing terminator. fix the request and try again.
+  </div>
+
+  <div class="error-actions">
+    <a href="/">cd /</a>
+  </div>
+
+</div>
+</body>
+</html>

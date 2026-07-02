@@ -1,1 +1,36 @@
-<html><body><h1>Error 405</h1></body></html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>405 — Method Not Allowed</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="error-page">
+<div class="error-card">
+
+  <div class="term" style="margin-bottom:26px;">
+    <div class="term-bar">
+      <span class="term-dot amber"></span>
+      <span class="term-dot"></span>
+      <span class="term-dot"></span>
+      <span class="term-title">route — method blocked</span>
+    </div>
+  </div>
+
+  <div class="error-code warn">405</div>
+  <div class="error-status">Method Not Allowed</div>
+
+  <div class="error-msg">
+    <div class="prompt-line"><span>$</span> method rejected by this location</div>
+    this route only accepts the methods listed in its <span style="color:var(--green)">methods</span>
+    directive. check the config block for this path and retry with an allowed verb.
+  </div>
+
+  <div class="error-actions">
+    <a href="/">cd /</a>
+  </div>
+
+</div>
+</body>
+</html>
