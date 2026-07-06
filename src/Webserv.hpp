@@ -25,6 +25,7 @@ public:
     Server* getServerByFd(int fd);
     Client* getClientByFd(int fd);
     pollfd* getPollfdByFd(int fd);
+    std::vector<pollfd>&getPollfds() { return _pollfds; }
     void readyToSend(int clientFd);
     void removeClient(int clientFd);
 

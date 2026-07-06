@@ -90,7 +90,16 @@ void Webserv::readFromClient(int clientFd) {
       }
       if (client->_request.isRequestComplete()) 
       {
+        client->setFdsPointer(getPollfds());
         client->processResponse();
+        // if(client->iscgi())
+        // {
+        //     pollfd pfd;
+        //     pfd.fd = client->getCgiFd();
+        //     pfd.events = POLLOUT;
+        //     _pollfds.push_back(pfd);
+        //     std::cout << "\033[32mCGI process started for client fd " << clientFd << "\033[0m" << std::endl;
+        // }
         readyToSend(clientFd);
         client->_request.clear_rawRequest();
       }
