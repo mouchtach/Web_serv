@@ -10,6 +10,8 @@ private:
     bool redc;
     bool CGI;
     std::pair<int , std::string> _return;
+    std::string _cgiExtension;
+    std::string _cgiPath;
 
 
 public:
@@ -22,9 +24,13 @@ public:
     void setPath(const std::string& path);
     void setRootOverridden(bool t) { rootOverridden = t; }
     void setCgi(bool t) { CGI = t; }
+    void setCgiExtension(const std::string& ext);
+    void setCgiPath(const std::string& path);
 
     const std::string& getPath() const;
     const std::pair<int, std::string>& getReturn() const;
+    const std::string& getCgiExtension() const;
+    const std::string& getCgiPath() const;
     bool isMethodAllowed(const int method) const;
     void error(const std::string& message) const {
         throw std::runtime_error("LocationConfig: " + message);

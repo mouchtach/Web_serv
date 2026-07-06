@@ -5,7 +5,7 @@
 
 Client::Client(): _fd(-1), _config(), _targetLocation() , _request(), _response() {}
 
-Client::Client(int fd, const Config &config) : _fd(fd), _config(config) {
+Client::Client(int fd, const Config &config) : _fd(fd), _cgifd(-1),  _config(config) {
     _response.setConfig(config);
 }
 
@@ -31,6 +31,15 @@ void Client::findTargetLocation() {
                 _targetLocation = locations[i];
         }
     }
+}
+
+bool endsWith(const std::string& str, const std::string& suffix) {
+    std::cout << "Checking if '" << str << "' ends with '" << suffix << "'" << std::endl;
+    if (str.length() < suffix.length()) 
+    {
+        return false;
+    }
+    return str.compare(str.length() - suffix.length(), suffix.length(), suffix) == 0;
 }
 
 void Client::processResponse() {
@@ -64,12 +73,65 @@ void Client::processResponse() {
       pathToAppend = uri;
   }
   std::string target = appendPath(root, pathToAppend);
+  std::cout << "CHECK "  << _targetLocation.getCgiExtension() << std::endl;
+  if (!_targetLocation.getCgiExtension().empty() && endsWith(target, _targetLocation.getCgiExtension())) {
+      handleCGI(target);
+      return;
+  }
   if (_request.getMethod() == GET) {
       handelGET(target,  uri);
   } else if (_request.getMethod() == POST) {
       handelPOST(target);
   } else if (_request.getMethod() == DELETE) {
       handelDELETE(target);
+  }
+}
+
+void Client::handleCGI(std::string& target) {
+
+  std::cout << "Handling CGI for target: " << target << std::endl;
+  std::string test = "hello from CGI script\n";
+  int in[2];
+  pipe(in);
+  // close(in[0]);
+  // add in[1] to pollfds in webserv class to monitor when the CGI process is done writing
+  // _pollfds->push_back(pollfd{in[1], POLLIN});
+  pollfd pfd;
+  pfd.fd = in[1];
+  pfd.events = POLLIN;
+  _pollfds->push_back(pfd);
+  int out[2];
+  pipe(out);
+  // close(out[1]);
+  pfd.fd = out[0];
+  pfd.events = POLLOUT;
+  _pollfds->push_back(pfd);
+  write(in[1], test.c_str(), test.size());
+  // int pid = fork();
+  _cgiPid = fork();
+  if (_cgiPid == 0) {
+    dup2(in[0], STDIN_FILENO);
+    dup2(out[1], STDOUT_FILENO);
+    close(in[1]);
+    close(out[0]);
+    // readFile(target.c_str());
+    char *buffer = new char[1024];
+    int n = read(STDIN_FILENO, buffer, 1024);
+    buffer[n] = '\0';
+    //build response and send it back to the client
+    std::string response = "HTTP/1.0 200 OK\r\nContent-Length: " + std::to_string(n) + "\r\nContent-Type: text/plain\r\n\r\n" + std::string(buffer);
+    // std::cerr << "CGI Response: " << response << std::endl;
+    write(STDOUT_FILENO, response.c_str(), response.size());
+    delete[] buffer;  
+    // std::cout << buffer << std::endl;
+    exit(0);
+    // write(STDOUT_FILENO, test.c_str(), test.size());
+  }
+  else {
+    std::cout << "CGI process started with PID: " << _cgiPid << std::endl;
+    close(in[0]);
+    // _cgifd = out[0];
+    close(out[1]);
   }
 }
 
@@ -112,7 +174,7 @@ void Client::sendFile(const std::string &filepath) {
   _response.buildResponse();
 }
 
-void Client::handelDELETE(std::string target) {
+void Client::handelDELETE(std::string& target) {
   struct stat statBuf;
   if (stat(target.c_str(), &statBuf) == -1) {
     _response.sendError(404);

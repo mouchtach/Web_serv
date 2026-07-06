@@ -20,8 +20,7 @@ const std::map<int, std::string> &serverConfig::getErrorPages() const {
   return _errorPages;
 }
 const std::vector<std::string> &serverConfig::getMethods() const { return _methods; }
-const std::string &serverConfig::getCgiExtension() const { return _cgiExtension; }
-const std::string &serverConfig::getCgiPath() const { return _cgiPath; }
+
 // const std::string &serverConfig::getReturn() const { return _return; }
 
 
@@ -40,14 +39,14 @@ serverConfig::serverConfig() {
 //   _return = "";
 }
 serverConfig::~serverConfig() {
-  _errorPages.clear();
+  // _errorPages.clear();
 //   for (size_t i = 0; i < _locations.size(); ++i) {
 //     delete _locations[i];
 //   }
 //   _locations.clear();
-  _methods.clear();
-  _cgiExtension.clear();
-  _cgiPath.clear();
+  // _methods.clear();
+  // _cgiExtension.clear();
+  // _cgiPath.clear();
   // _return.second.clear();
 }
 
@@ -148,13 +147,7 @@ void serverConfig::setMethods(const std::vector<std::string> &methods) {
   }
 }
 
-void serverConfig::setCgiExtension(const std::string &cgiExtension) {
-  _cgiExtension = stripSemicolon(cgiExtension);
-}
 
-void serverConfig::setCgiPath(const std::string &cgiPath) {
-  _cgiPath = stripSemicolon(cgiPath);
-}
 
 
 

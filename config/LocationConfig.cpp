@@ -4,10 +4,21 @@
 const std::string &LocationConfig::getPath() const { return _path; }
 
 const std::pair<int, std::string>& LocationConfig::getReturn() const { return _return; }
+const std::string &LocationConfig::getCgiExtension() const { return _cgiExtension; }
+const std::string &LocationConfig::getCgiPath() const { return _cgiPath; }
 
 LocationConfig::LocationConfig() : _path("") {}
 
 void LocationConfig::setPath(const std::string &path) { _path = path; }
+void LocationConfig::setCgiExtension(const std::string &cgiExtension) {
+  // std::cout << "Setting CGI extension to: " << cgiExtension << std::endl;
+  _cgiExtension = stripSemicolon(cgiExtension);
+}
+
+void LocationConfig::setCgiPath(const std::string &cgiPath) {
+  // std::cout << "Setting CGI path to: " << cgiPath << std::endl;
+  _cgiPath = stripSemicolon(cgiPath);
+}
 
 void LocationConfig::setReturn(const std::vector<std::string>& tokens, size_t* i) {
     _return.first = std::atoi(tokens[*i].c_str());
