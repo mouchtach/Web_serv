@@ -8,18 +8,20 @@ private:
     std::string _targetPath;
     bool rootOverridden;
     bool redc;
+    bool CGI;
     std::pair<int , std::string> _return;
 
 
 public:
     LocationConfig();
-    LocationConfig(const serverConfig& parentConfig) : serverConfig(parentConfig), _path("") ,  rootOverridden(false) , redc(false){}
+    LocationConfig(const serverConfig& parentConfig) : serverConfig(parentConfig), _path("") ,  rootOverridden(false) , redc(false), CGI(false){}
     virtual ~LocationConfig();
     bool hasredirection() { return redc;}
     void override(const std::vector<std::string> &tokens, size_t &i, const std::string path);
     void setReturn(const std::vector<std::string>& tokens, size_t* i);
     void setPath(const std::string& path);
     void setRootOverridden(bool t) { rootOverridden = t; }
+    void setCgi(bool t) { CGI = t; }
 
     const std::string& getPath() const;
     const std::pair<int, std::string>& getReturn() const;
@@ -29,4 +31,5 @@ public:
     }
     void print() const;
     bool isRootOverridden() const { return rootOverridden; }
+    bool isCgi() const { return CGI; }
 };

@@ -21,7 +21,6 @@ public:
   Client(int fd, const Config &config);
   ~Client();
 
-
   // getters
   int getFd() const;
   const Config &getConfig() const;
@@ -35,7 +34,7 @@ public:
   void redirection(int statuscode, const std::string &newLocation);
   void sendFile(const std::string &filepath);
 
-  void handelGET();
-  void handelPOST();
-  void handelDELETE();
+  void handelGET(std::string target, std::string uri);
+  void handelPOST(std::string target);
+  void handelDELETE(std::string target);
 };

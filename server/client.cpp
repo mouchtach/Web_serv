@@ -34,13 +34,43 @@ void Client::findTargetLocation() {
 }
 
 void Client::processResponse() {
-    if (_request.getMethod() == GET) {
-        handelGET();
-    } else if (_request.getMethod() == POST) {
-        handelPOST();
-    } else if (_request.getMethod() == DELETE) {
-        handelDELETE();
-    }
+  findTargetLocation();
+  std::string root = _targetLocation.getRoot();
+  std::string locationPath = _targetLocation.getPath();
+  std::string pathToAppend;
+  std::string uri = _request.getUri();
+
+  if (isPathsafe(uri) == false)
+  {
+      _response.sendError(403);
+      return;
+  }
+  if (_targetLocation.isMethodAllowed(_request.getMethod()) == false)
+  {
+      _response.sendError(405);
+      return;
+  }
+  if (_targetLocation.hasredirection()) {
+      redirection(_targetLocation.getReturn().first, _targetLocation.getReturn().second);
+      return;
+  }
+  if (_targetLocation.isRootOverridden())
+  {
+      std::string uriSuffix = uri.substr(locationPath.length());
+      pathToAppend = uriSuffix;
+  }
+  else
+  {
+      pathToAppend = uri;
+  }
+  std::string target = appendPath(root, pathToAppend);
+  if (_request.getMethod() == GET) {
+      handelGET(target,  uri);
+  } else if (_request.getMethod() == POST) {
+      handelPOST(target);
+  } else if (_request.getMethod() == DELETE) {
+      handelDELETE(target);
+  }
 }
 
 void Client::processAutoIndex(const std::string &uri, const std::string &target) {
@@ -82,144 +112,42 @@ void Client::sendFile(const std::string &filepath) {
   _response.buildResponse();
 }
 
-
-void Client::handelDELETE() {
-  findTargetLocation();
-  std::string uri = _request.getUri();
-  if (isPathsafe(uri) == false)
-  {
-      _response.sendError(403);
-      return;
-  }
-  if(_targetLocation.isMethodAllowed(DELETE) == false)
-  {
-      std::cout << "DELETE method not allowed for this location" << std::endl;
-      _response.sendError(405);
-      return;
-  }
-  std::string root = _targetLocation.getRoot();
-  std::string locationPath = _targetLocation.getPath();
-  std::string pathToAppend;
-
-  if (_targetLocation.isRootOverridden())
-  {
-      std::string uriSuffix = uri.substr(locationPath.length());
-      pathToAppend = uriSuffix;
-  }
-  else
-  {
-      pathToAppend = uri;
-  }
-
-  std::string target = appendPath(root, pathToAppend);
+void Client::handelDELETE(std::string target) {
   struct stat statBuf;
   if (stat(target.c_str(), &statBuf) == -1) {
     _response.sendError(404);
     return;
   }
-  
   if (remove(target.c_str()) != 0) {
     _response.sendError(500);
     return;
   }
-
   _response.setStatusCode("200");
   _response.setversion("HTTP/1.0");
   _response.setStatusMessage("OK");
   _response.buildResponse();
 }
 
-void Client::handelPOST(){
-  
-  findTargetLocation();
-  std::string uri = _request.getUri();
-  if (isPathsafe(uri) == false)
-  {
-      _response.sendError(403);
-      return;
-  }
-  if(_targetLocation.isMethodAllowed(POST) == false)
-  {
-      std::cout << "POST method not allowed for this location" << std::endl;
-      _response.sendError(405);
-      return;
-  }
-  std::string root = _targetLocation.getRoot();
-  std::string locationPath = _targetLocation.getPath();
-  std::cout << "POST uri: " << uri << std::endl;
-  std::string pathToAppend;
-
-  if (_targetLocation.isRootOverridden())
-  {
-      std::string uriSuffix = uri.substr(locationPath.length());
-      pathToAppend = uriSuffix;
-  }
-  else
-  {
-      pathToAppend = uri;
-  }
-
-  std::cout << "pathToAppend: " << pathToAppend << std::endl;
-  std::string target = appendPath(root, pathToAppend);
-  std::cout << "POST target: " << target << std::endl;
+void Client::handelPOST(std::string target){
   struct stat statBuf;
-  if (stat(target.c_str(), &statBuf) == -1) {
-    _response.sendError(404);
-    return;
-  }
+  if (stat(target.c_str(), &statBuf) == -1)
+    return(_response.sendError(404));
   std::string fileName = extractFileName(_request.getBody());
-  std::cout << "POST fileName: " << fileName << std::endl;
-
-  // creat file
   std::string filePath = appendPath(target, fileName);
   std::ofstream outFile(filePath, std::ios::binary);
-  if (!outFile) {
-    _response.sendError(500);
-    return;
-  }
-
-  
+  if (!outFile) 
+    return(_response.sendError(500));
   outFile << extractBodyfile(_request.getBody());
   outFile.close();
   std::cout << "POST file created: " << filePath << std::endl;
-
   _response.setStatusCode("200");
   _response.setversion("HTTP/1.0");
   _response.setStatusMessage("OK");
   _response.buildResponse();
-  // (getFd());
 }
 
-void Client::handelGET() {
+void Client::handelGET(std::string target, std::string uri) {
 
-  findTargetLocation();
-  std::string uri = _request.getUri();
-  // std::cout << "GET uri: " << uri << std::endl;
-  std::string root = _targetLocation.getRoot();
-  std::string index = _targetLocation.getIndex();
-  std::string locationPath = _targetLocation.getPath();
-  std::string uriSuffix;
-  std::string pathToAppend;
-
-  if(isPathsafe(uri) == false)
-  {
-      _response.sendError(403);
-      return;
-  }
-  if(_targetLocation.hasredirection()){
-    redirection(_targetLocation.getReturn().first, root + _targetLocation.getReturn().second);
-    return;
-  }
-  if (_targetLocation.isRootOverridden())
-  {
-      uriSuffix = uri.substr(locationPath.length());
-      pathToAppend = uriSuffix;
-  }
-  else
-  {
-      pathToAppend = uri;
-  }
-  std::string target = appendPath(root, pathToAppend);
   struct stat statBuf;
   if (stat(target.c_str(), &statBuf) == -1) {
     _response.sendError(404);
@@ -242,7 +170,7 @@ void Client::handelGET() {
         _response.sendError(405);
         return;
     }
-    std::string indexPath = target + "/" + index;
+    std::string indexPath = target + "/" + _targetLocation.getIndex();
     struct stat indexStat;
     if (stat(indexPath.c_str(), &indexStat) == 0 && S_ISREG(indexStat.st_mode)) {
       sendFile(indexPath);
