@@ -3,6 +3,7 @@
 #include "../config/ParssingConf.hpp"
 #include "../server/client.hpp"
 #include "../server/server.hpp"
+#include "../server/utils.h"
 #include <fcntl.h>
 #include <iostream>
 #include <string>
@@ -92,14 +93,8 @@ void Webserv::readFromClient(int clientFd) {
       {
         client->setFdsPointer(getPollfds());
         client->processResponse();
-        // if(client->iscgi())
-        // {
-        //     pollfd pfd;
-        //     pfd.fd = client->getCgiFd();
-        //     pfd.events = POLLOUT;
-        //     _pollfds.push_back(pfd);
-        //     std::cout << "\033[32mCGI process started for client fd " << clientFd << "\033[0m" << std::endl;
-        // }
+        _cgiFds.push_back(client->getCgi_inputfd());
+        _cgiFds.push_back(client->getCgi_outputfd());
         readyToSend(clientFd);
         client->_request.clear_rawRequest();
       }
@@ -115,6 +110,30 @@ void Webserv::readFromClient(int clientFd) {
     }
 }
 
+// bool Webserv::is_cgi(int fd) const {
+//     Client *client = getClientByFd(fd);
+//     if (client && client->iscgi()) {
+//         return true;  
+//     }
+//     return false; 
+// }
+void Webserv::readFromCGI(int cgiFd) {
+    // Client *client = getClientByFd(cgiFd);
+    // if (!client) {
+    //     std::cerr << "\033[31mClient not found for CGI fd " << cgiFd << "\033[0m" << std::endl;
+    //     return;
+    // } 
+    
+  std::cout << "Reading from CGI fd: " << cgiFd << std::endl;
+  // open and read file descriptor cgiFd, then send the data back to the client
+  std::string buffer = readfile(cgiFd);
+  std::cout << "Read " << buffer.size() << " bytes from CGI fd: " << cgiFd << std::endl;
+  std::cout << "CGI output: " << buffer << std::endl;
+  
+  close(cgiFd);
+  // build response and send it back to the client
+};
+
 void Webserv::Start() {
     while (true) {
         int ret = poll(_pollfds.data(), _pollfds.size(), -1); 
@@ -128,6 +147,8 @@ void Webserv::Start() {
             {
                 if (is_server(_pollfds[i].fd))
                     newConnection(_pollfds[i].fd);
+                else if (is_cgi(_pollfds[i].fd))
+                    readFromCGI(_pollfds[i].fd);
                 else
                     readFromClient(_pollfds[i].fd);
             } 

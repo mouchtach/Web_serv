@@ -19,6 +19,20 @@ std::string readFile(const std::string &filepath) {
   return content;
 }
 
+#include <unistd.h>
+std::string readfile(int fd) {
+  std::string content;
+  char buffer[1024];
+  ssize_t bytesRead;
+  while ((bytesRead = read(fd, buffer, sizeof(buffer))) > 0) {
+    content.append(buffer, bytesRead);
+  }
+  if (bytesRead < 0) {
+    return "";
+  }
+  return content;
+}
+
 
 std::string formatSize(off_t size) {
   std::ostringstream ss;

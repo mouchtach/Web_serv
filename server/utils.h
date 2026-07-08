@@ -3,6 +3,7 @@
 
 bool isMatch(const std::string &uri, const std::string &location);
 std::string readFile(const std::string &filepath);
+std::string readfile(int fd);
 std::string formatSize(off_t size);
 std::string formatTime(time_t t);
 std::string buildAutoIndex(const std::string &dirPath, const std::string &uri);
