@@ -10,13 +10,15 @@ class Client
 {
 private:
   int             _fd;
-  int             _cgifd;
+  // int             _cgifd;
   int            _cgiPid;
   Config          _config;
   LocationConfig  _targetLocation;
   // i want pointer to point to the vector pollfds in webserv class to add the cgi fd to it when i fork a new process for cgi
   std::vector<pollfd>* _pollfds;
-  
+  // std::vector< std::pair<int, int> > _cgiPipes; // pair of pipes for cgi process
+  int _cgi_inputfd; // pipe for cgi process input
+  int _cgi_outputfd; // pipe for cgi process output
 public:
   Client();
   Request         _request;
@@ -38,8 +40,31 @@ public:
   void redirection(int statuscode, const std::string &newLocation);
   void sendFile(const std::string &filepath);
 
-  bool iscgi() const { return _cgifd != -1; }
-  int getCgiFd() const { return _cgifd; }
+  // bool iscgi() const { return _cgifd != -1; }
+  // bool isPipeCgi_input(int fd) const {
+  //   for (size_t i = 0; i < _cgiPipes.size(); ++i) {
+  //       if (_cgiPipes[i].first == 0 && _cgiPipes[i].second == fd) {
+  //           return true;
+  //       }
+  //   }
+  //   return false;
+  // }
+  // bool isPipeCgi_output(int fd) const {
+  //   for (size_t i = 0; i < _cgiPipes.size(); ++i) {
+  //       if (_cgiPipes[i].first == 1 && _cgiPipes[i].second == fd) {
+  //           return true;
+  //       }
+  //   }
+  //   return false;
+  // }
+  int getCgi_inputfd() const { 
+    std::cout << "Getting CGI input fd: " << _cgi_inputfd << std::endl;
+    return _cgi_inputfd; 
+  }
+  int getCgi_outputfd() const { 
+    std::cout << "Getting CGI output fd: " << _cgi_outputfd << std::endl;
+    return _cgi_outputfd; 
+  }
   int getCgiPid() const { return _cgiPid; }
   // void setCgiFd(int fd) { _cgifd = fd; }
   void handelGET(std::string target, std::string uri);

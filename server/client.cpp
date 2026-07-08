@@ -5,7 +5,7 @@
 
 Client::Client(): _fd(-1), _config(), _targetLocation() , _request(), _response() {}
 
-Client::Client(int fd, const Config &config) : _fd(fd), _cgifd(-1),  _config(config) {
+Client::Client(int fd, const Config &config) : _fd(fd), _cgiPid(-1),  _config(config), _cgi_inputfd(-1), _cgi_outputfd(-1) {
     _response.setConfig(config);
 }
 
@@ -130,8 +130,11 @@ void Client::handleCGI(std::string& target) {
   else {
     std::cout << "CGI process started with PID: " << _cgiPid << std::endl;
     close(in[0]);
-    // _cgifd = out[0];
     close(out[1]);
+    _cgi_inputfd = out[0];
+    _cgi_outputfd = in[1];
+    // _cgiPipes.push_back(std::make_pair(0, out[0]));
+    // _cgiPipes.push_back(std::make_pair(1, in[1])); 
   }
 }
 
