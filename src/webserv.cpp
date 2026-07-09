@@ -139,15 +139,42 @@ Client *Webserv::getClientCGI(int cgiFd) {
     }
     return nullptr;
 }
-void Webserv::readFromCGI(int cgiFd) {
-  // wich client is associated with this cgiFd? we need to find the client that has this cgiFd and send the data back to that client
 
-  Client *client = getClientCGI(cgiFd);
-  std::cout << "\033[32mReading from CGI fd " << cgiFd << " for client fd " << (client ? client->getFd() : -1) << "\033[0m" << std::endl;
-  std::string buffer = readfile(cgiFd);
-  std::cout << "\033[32mRead " << buffer.size() << " bytes from CGI fd " << cgiFd << "\033[0m" << std::endl;
-  close(cgiFd);
-};
+void Webserv::readFromCGI(int cgiFd) {
+    Client *client = getClientCGI(cgiFd);
+    if (!client) { close(cgiFd); return; }
+
+    char buf[4096];
+    ssize_t n = read(cgiFd, buf, sizeof(buf));
+
+    if (n > 0) {
+        // accumulate — add a std::string _cgiBuffer to Client if not present
+        client->appendCgiBuffer(std::string(buf, n));
+        return; // wait for more / EOF, don't build response yet
+    }
+
+    // n == 0 -> EOF, child is done writing
+    int status;
+    waitpid(client->getCgiPid(), &status, 0);
+    client->setCgiPid(-1);
+
+    std::string body = client->getCgiBuffer();
+    client->_response.setStatusCode("200");
+    client->_response.setversion("HTTP/1.0");
+    client->_response.setStatusMessage("OK");
+    client->_response.setHeader("Content-Length", std::to_string(body.size()));
+    client->_response.setHeader("Content-Type", "text/plain");
+    client->_response.setBody(body);
+    client->_response.buildResponse();
+
+    // remove cgiFd from pollfds so poll() stops watching it
+    for (std::vector<pollfd>::iterator it = _pollfds.begin(); it != _pollfds.end(); ++it) {
+        if (it->fd == cgiFd) { _pollfds.erase(it); break; }
+    }
+    close(cgiFd);
+
+    readyToSend(client->getFd()); // flips client's pollfd to POLLOUT
+}
 
 void Webserv::Start() {
     while (true) {

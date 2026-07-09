@@ -89,53 +89,38 @@ void Client::processResponse() {
 
 void Client::handleCGI(std::string& target) {
 
-  std::cout << "Handling CGI for target: " << target << std::endl;
-  std::string test = "hello from CGI script\n";
-  int in[2];
-  pipe(in);
-  // close(in[0]);
-  // add in[1] to pollfds in webserv class to monitor when the CGI process is done writing
-  // _pollfds->push_back(pollfd{in[1], POLLIN});
-  pollfd pfd;
-  pfd.fd = in[1];
-  pfd.events = POLLIN;
-  _pollfds->push_back(pfd);
-  int out[2];
-  pipe(out);
-  // close(out[1]);
-  pfd.fd = out[0];
-  pfd.events = POLLOUT;
-  _pollfds->push_back(pfd);
-  write(in[1], test.c_str(), test.size());
-  // int pid = fork();
-  _cgiPid = fork();
-  if (_cgiPid == 0) {
-    dup2(in[0], STDIN_FILENO);
-    dup2(out[1], STDOUT_FILENO);
-    close(in[1]);
-    close(out[0]);
-    // readFile(target.c_str());
-    char *buffer = new char[1024];
-    int n = read(STDIN_FILENO, buffer, 1024);
-    buffer[n] = '\0';
-    //build response and send it back to the client
-    std::string response = "HTTP/1.0 200 OK\r\nContent-Length: " + std::to_string(n) + "\r\nContent-Type: text/plain\r\n\r\n" + std::string(buffer);
-    // std::cerr << "CGI Response: " << response << std::endl;
-    write(STDOUT_FILENO, response.c_str(), response.size());
-    delete[] buffer;  
-    // std::cout << buffer << std::endl;
-    exit(0);
-    // write(STDOUT_FILENO, test.c_str(), test.size());
-  }
-  else {
-    std::cout << "CGI process started with PID: " << _cgiPid << std::endl;
+    std::cout << "Handling CGI for target: " << target << std::endl;
+    int in[2], out[2];
+    pipe(in);
+    pipe(out);
+
+    _cgiPid = fork();
+    if (_cgiPid == 0) {
+        // child
+        close(in[1]);
+        close(out[0]);
+        dup2(in[0], STDIN_FILENO);
+        dup2(out[1], STDOUT_FILENO);
+        close(in[0]);
+        close(out[1]);
+
+        std::string test = "hello from CGI child\n";
+        write(STDOUT_FILENO, test.c_str(), test.size());
+        exit(0);
+    }
+
+    // parent
     close(in[0]);
     close(out[1]);
-    _cgi_inputfd = out[0];
-    _cgi_outputfd = in[1];
-    // _cgiPipes.push_back(std::make_pair(0, out[0]));
-    // _cgiPipes.push_back(std::make_pair(1, in[1])); 
-  }
+    close(in[1]); // nothing to send to stdin for this test
+
+    _cgi_inputfd  = out[0]; // fd we READ cgi output from
+    _cgi_outputfd = -1;
+
+    pollfd pfd;
+    pfd.fd = out[0];
+    pfd.events = POLLIN;   // fixed: watch for readable data
+    _pollfds->push_back(pfd);
 }
 
 void Client::processAutoIndex(const std::string &uri, const std::string &target) {
