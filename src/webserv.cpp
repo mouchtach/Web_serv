@@ -95,6 +95,19 @@ void Webserv::readFromClient(int clientFd) {
         client->processResponse();
         _cgiFds.push_back(client->getCgi_inputfd());
         _cgiFds.push_back(client->getCgi_outputfd());
+        if(client->getCgiPid() > 0) {
+            int status;
+            if(client->getCgiPid() ==  waitpid(client->getCgiPid(), &status, WNOHANG))
+            {
+              client->setCgiPid(-1); // Reset the CGI PID since the process has finished
+              std::cout << "\033[32mCGI process " << client->getCgiPid() << " finished with status " << WEXITSTATUS(status) << "\033[0m" << std::endl;
+            }
+            else
+            {
+                std::cout << "\033[32mCGI process " << client->getCgiPid() << " is still running\033[0m" << std::endl;
+                return ;
+            }
+        }
         readyToSend(clientFd);
         client->_request.clear_rawRequest();
       }
@@ -117,21 +130,23 @@ void Webserv::readFromClient(int clientFd) {
 //     }
 //     return false; 
 // }
+
+Client *Webserv::getClientCGI(int cgiFd) {
+    for (std::map<int, Client>::iterator it = _clientMap.begin(); it != _clientMap.end(); ++it) {
+        if (it->second.getCgi_inputfd() == cgiFd || it->second.getCgi_outputfd() == cgiFd) {
+            return &(it->second);
+        }
+    }
+    return nullptr;
+}
 void Webserv::readFromCGI(int cgiFd) {
-    // Client *client = getClientByFd(cgiFd);
-    // if (!client) {
-    //     std::cerr << "\033[31mClient not found for CGI fd " << cgiFd << "\033[0m" << std::endl;
-    //     return;
-    // } 
-    
-  std::cout << "Reading from CGI fd: " << cgiFd << std::endl;
-  // open and read file descriptor cgiFd, then send the data back to the client
+  // wich client is associated with this cgiFd? we need to find the client that has this cgiFd and send the data back to that client
+
+  Client *client = getClientCGI(cgiFd);
+  std::cout << "\033[32mReading from CGI fd " << cgiFd << " for client fd " << (client ? client->getFd() : -1) << "\033[0m" << std::endl;
   std::string buffer = readfile(cgiFd);
-  std::cout << "Read " << buffer.size() << " bytes from CGI fd: " << cgiFd << std::endl;
-  std::cout << "CGI output: " << buffer << std::endl;
-  
+  std::cout << "\033[32mRead " << buffer.size() << " bytes from CGI fd " << cgiFd << "\033[0m" << std::endl;
   close(cgiFd);
-  // build response and send it back to the client
 };
 
 void Webserv::Start() {

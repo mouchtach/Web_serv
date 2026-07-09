@@ -34,6 +34,8 @@ public:
     Server* getServerByFd(int fd);
     Client* getClientByFd(int fd);
     pollfd* getPollfdByFd(int fd);
+    Client* getClientCGI(int cgiFd);
+    
     std::vector<pollfd>&getPollfds() { return _pollfds; }
     void readyToSend(int clientFd);
     void readFromCGI(int cgiFd);

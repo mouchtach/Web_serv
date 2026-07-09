@@ -66,6 +66,7 @@ public:
     return _cgi_outputfd; 
   }
   int getCgiPid() const { return _cgiPid; }
+  void setCgiPid(int pid) { _cgiPid = pid; }
   // void setCgiFd(int fd) { _cgifd = fd; }
   void handelGET(std::string target, std::string uri);
   void handelPOST(std::string target);
