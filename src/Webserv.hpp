@@ -1,47 +1,64 @@
-#pragma once 
+#pragma once
+#include "../parssing/config.hpp"
+#include "server.hpp"
+#include "client.hpp"
 
-#include "../server/server.hpp"
-#include "../server/client.hpp"
+#include <map>
 #include <vector>
+#include <string>
 #include <poll.h>
+#include <unistd.h>
 
-class Webserv
-{
+enum FD_type {
+    FD_SERVER,
+    FD_CLIENT,
+    CGI
+};
+
+typedef struct FD_info {
+    int fd;
+    FD_type type;
+    void *obj;
+} FD_info;
+
+
+class WebServ {
 private:
-    std::map<int, Client> _clientMap;
-    std::vector<Server> _servers;
+    std::vector<Config> _configs;
     std::vector<pollfd> _pollfds;
-    std::vector<Client> _clients;
-    std::vector<int > _cgiFds; // Store the fds of CGI processes
-
+    std::map<int , Server> _servers;
+    std::map<int , Client> _clients;
+    std::map<int , FD_info> _fdInfos;
 public:
-    Webserv(){};
+    WebServ();
+    ~WebServ();
+    WebServ(const WebServ &other);
+    WebServ &operator=(const WebServ &other);
+    void start();
+    void setup();
+    // process
+    void newConnection(int server_fd);
+    void readfromClient(int fd);
+    void cgiprocess(int fd);
+    void pollinprocess(int fd);
+    void polloutprocess(int fd);
+    void parsing(const std::string &filename);
 
-    bool is_server(int fd) const ;
-    bool is_cgi(int fd) const  {
-        for (size_t i = 0; i < _cgiFds.size(); ++i) {
-            if (_cgiFds[i] == fd) {
-                return true;
+    void addinfo(int fd, FD_type type, void *obj);
+    void addpollfd(int fd, short events);
+    void addserver(int fd, const Config &config);
+    void addclient(int fd, const Config &config);
+    FD_type getFDType(int fd);
+    // void displayConfigs() const;
+    void removeClient(int fd) {
+        _clients.erase(fd);
+        _fdInfos.erase(fd);
+        for (std::vector<pollfd>::iterator it = _pollfds.begin(); it != _pollfds.end(); ++it) {
+            if (it->fd == fd) {
+                _pollfds.erase(it);
+                break;
             }
         }
-        return false;
-    };
-    void setupServers(const std::string &configFile);
-    void Start();
-    void newConnection(int serverFd);
-    void readFromClient(int clientFd);
-
-    Server* getServerByFd(int fd);
-    Client* getClientByFd(int fd);
-    pollfd* getPollfdByFd(int fd);
-    Client* getClientCGI(int cgiFd);
-    
-    std::vector<pollfd>&getPollfds() { return _pollfds; }
-    void readyToSend(int clientFd);
-    void readFromCGI(int cgiFd);
-    void removeClient(int clientFd);
-
-
-
-    // void PrintServers() const;
+        close(fd);
+    }
 };

@@ -1,279 +1,201 @@
-#include "Webserv.hpp"
-#include "../http/httpexception.hpp"
-#include "../config/ParssingConf.hpp"
-#include "../server/client.hpp"
-#include "../server/server.hpp"
-#include "../server/utils.h"
+#include "webserv.hpp"
+#include "../parssing/configparssing.hpp"
+
+#include <sys/socket.h>
+#include <netinet/in.h>
 #include <fcntl.h>
 #include <iostream>
-#include <string>
-#include <unistd.h>
-#include <cerrno> 
-#include <cstring>
-
-bool Webserv::is_server(int fd) const {
-  for (size_t i = 0; i < _servers.size(); ++i) {
-    if (_servers[i].getFd() == fd) {
-      return true;
-    }
-  }
-  return false;
+WebServ::WebServ() {
 }
 
-void Webserv::setupServers(const std::string &configFile) {
-
-    ParssingConf parser;
-    try {
-        std::cout << "\033[32mParsing config file: " << configFile << "\033[0m" << std::endl;
-        parser.parseConfig(configFile);
-    } catch (const std::exception &e) {
-        std::cerr << "\033[31mError parsing config file: " << e.what() << "\033[0m" << std::endl;
-        throw;
-    }
-    std::cout << "\033[32mSetting up servers...\033[0m" << std::endl;
-    const std::vector<Config> &configs = parser.getConfigs();
-    for (size_t i = 0; i < configs.size(); ++i) {
-        try {
-            Server server(configs[i]);
-            _servers.push_back(server);
-            pollfd pfd;
-            pfd.fd = server.getFd();
-            pfd.events = POLLIN;
-            _pollfds.push_back(pfd);
-        } catch (const std::exception &e) {
-            std::cerr << "\033[31mError setting up server on port " << configs[i].getPort() << ": " << e.what() << "\033[0m" << std::endl;
-            throw;  
-        }
-    }
+WebServ::~WebServ() {
 }
 
-void Webserv::newConnection(int serverFd) {
-  int clientFd = accept(serverFd, NULL, NULL);
-  if (clientFd < 0)
-    throw std::runtime_error("Failed to accept new connection");
-  if (fcntl(clientFd, F_SETFL, O_NONBLOCK) < 0)
-    throw std::runtime_error("Failed to set client socket to non-blocking");
-  Client client(clientFd, getServerByFd(serverFd)->getConfig());
-  _clients.push_back(client);
-  _clientMap[clientFd] = client;
-  pollfd pfd;
-  pfd.fd = clientFd;
-  pfd.events = POLLIN;
-  _pollfds.push_back(pfd);
-  std::cout << "\033[32mNew connection accepted: client fd " << clientFd << " on server fd " << serverFd << "\033[0m" << std::endl;
+WebServ::WebServ(const WebServ &other) : _configs(other._configs) {
 }
 
-void Webserv::readFromClient(int clientFd) {
-  Client *client = getClientByFd(clientFd);
-  try {
-    if (!client)
-      throw std::runtime_error("Client not found");
-    char buffer[4096];
-    ssize_t bytesRead = recv(clientFd, buffer, sizeof(buffer), 0);
-    // std::cout << "buffer: " << std::string(buffer, bytesRead) << std::endl;
-    if (bytesRead < 0)
-      throw std::runtime_error("Failed to read from client");
-    else if (bytesRead == 0) {
-      if (client->_request.isheaderComplete() && !client->_request.isRequestComplete())
-        throw std::runtime_error("Client closed connection before sending complete request body");
-      removeClient(clientFd);
-      return;
-    }
-    client->_request.appendrequest(std::string(buffer, bytesRead));
-    if (client->_request.isheaderComplete()) 
-    {
-      if (client->_request.getMethod() == POST && client->_request.getContentLength() > client->getConfig().getClientMaxBodySize()) 
-      {
-        client->_response.sendError(413);
-        readyToSend(clientFd);
-        std::cerr << "\033[31mRequest body too large from client fd " << clientFd << "\033[0m" << std::endl;
-        return;
-      }
-      if (client->_request.isRequestComplete()) 
-      {
-        client->setFdsPointer(getPollfds());
-        client->processResponse();
-        _cgiFds.push_back(client->getCgi_inputfd());
-        _cgiFds.push_back(client->getCgi_outputfd());
-        if(client->getCgiPid() > 0) {
-            int status;
-            if(client->getCgiPid() ==  waitpid(client->getCgiPid(), &status, WNOHANG))
-            {
-              client->setCgiPid(-1); // Reset the CGI PID since the process has finished
-              std::cout << "\033[32mCGI process " << client->getCgiPid() << " finished with status " << WEXITSTATUS(status) << "\033[0m" << std::endl;
-            }
-            else
-            {
-                std::cout << "\033[32mCGI process " << client->getCgiPid() << " is still running\033[0m" << std::endl;
-                return ;
-            }
-        }
-        readyToSend(clientFd);
-        client->_request.clear_rawRequest();
-      }
-    }
-    } catch (const HttpException &e) {
-        client->_response.sendError(e.getStatusCode());
-        readyToSend(clientFd);
-        std::cerr << "\033[31mBad request from client fd " << clientFd << ": " << e.getMessage() << "\033[0m" << std::endl;
-    }
-    catch (const std::exception &e) {
-        std::cerr << "\033[31mError reading from client fd " << clientFd << ": " << e.what() << "\033[0m" << std::endl;
-        removeClient(clientFd);
-    }
+WebServ &WebServ::operator=(const WebServ &other) {
+	if (this != &other)
+		_configs = other._configs;
+	return *this;
 }
 
-// bool Webserv::is_cgi(int fd) const {
-//     Client *client = getClientByFd(fd);
-//     if (client && client->iscgi()) {
-//         return true;  
-//     }
-//     return false; 
-// }
 
-Client *Webserv::getClientCGI(int cgiFd) {
-    for (std::map<int, Client>::iterator it = _clientMap.begin(); it != _clientMap.end(); ++it) {
-        if (it->second.getCgi_inputfd() == cgiFd || it->second.getCgi_outputfd() == cgiFd) {
-            return &(it->second);
-        }
-    }
-    return nullptr;
+void WebServ::addinfo(int fd, FD_type type, void *obj) {
+	FD_info info;
+	info.fd = fd;
+	info.type = type;
+	info.obj = obj;
+	_fdInfos[fd] = info;
 }
 
-void Webserv::readFromCGI(int cgiFd) {
-    Client *client = getClientCGI(cgiFd);
-    if (!client) { close(cgiFd); return; }
-
-    char buf[4096];
-    ssize_t n = read(cgiFd, buf, sizeof(buf));
-
-    if (n > 0) {
-        // accumulate — add a std::string _cgiBuffer to Client if not present
-        client->appendCgiBuffer(std::string(buf, n));
-        return; // wait for more / EOF, don't build response yet
-    }
-
-    // n == 0 -> EOF, child is done writing
-    int status;
-    waitpid(client->getCgiPid(), &status, 0);
-    client->setCgiPid(-1);
-
-    std::string body = client->getCgiBuffer();
-    client->_response.setStatusCode("200");
-    client->_response.setversion("HTTP/1.0");
-    client->_response.setStatusMessage("OK");
-    client->_response.setHeader("Content-Length", std::to_string(body.size()));
-    client->_response.setHeader("Content-Type", "text/plain");
-    client->_response.setBody(body);
-    client->_response.buildResponse();
-
-    // remove cgiFd from pollfds so poll() stops watching it
-    for (std::vector<pollfd>::iterator it = _pollfds.begin(); it != _pollfds.end(); ++it) {
-        if (it->fd == cgiFd) { _pollfds.erase(it); break; }
-    }
-    close(cgiFd);
-
-    readyToSend(client->getFd()); // flips client's pollfd to POLLOUT
+void WebServ::addpollfd(int fd, short events) {
+	pollfd pfd;
+	pfd.fd = fd;
+	pfd.events = events;
+	pfd.revents = 0;
+	_pollfds.push_back(pfd);
 }
 
-void Webserv::Start() {
-    while (true) {
-        int ret = poll(_pollfds.data(), _pollfds.size(), -1); 
-        if (ret < 0) {
-            throw std::runtime_error("Poll failed");
-        }
-        std::vector<int> toRemove;
-        for (size_t i = 0; i < _pollfds.size(); ++i) 
-        {
-            if (_pollfds[i].revents & POLLIN) 
-            {
-                if (is_server(_pollfds[i].fd))
-                    newConnection(_pollfds[i].fd);
-                else if (is_cgi(_pollfds[i].fd))
-                    readFromCGI(_pollfds[i].fd);
-                else
-                    readFromClient(_pollfds[i].fd);
-            } 
-            else if (_pollfds[i].revents & POLLOUT) 
-            {
-                try {
-                    Client *client = getClientByFd(_pollfds[i].fd);
-                    if (!client) {
-                        removeClient(_pollfds[i].fd);
-                        continue;
-                    }
-                    const std::string &response = client->_response.getRawResponse();
-                    size_t offset = client->_response.getSentBytes();
-                    size_t remaining = response.size() - offset;
-                    ssize_t bytesSent = send(_pollfds[i].fd, response.c_str() + offset, remaining, 0);
-                    if (bytesSent < 0) {
-                        continue;
-                    }
-                    if (bytesSent == 0) {
-                        removeClient(_pollfds[i].fd);
-                        continue;
-                    }
-                    client->_response.setSentBytes(offset + bytesSent);
-                    if (client->_response.getSentBytes() >= response.size()) {
-                        std::cout << "\033[32mFull response sent to fd " << _pollfds[i].fd << "\033[0m" << std::endl;
-                        removeClient(_pollfds[i].fd);
-                    }
-                } catch (const std::exception &e) {
-                    std::cerr << "\033[31mError sending response: " << e.what() << "\033[0m" << std::endl;
-                    removeClient(_pollfds[i].fd);
-                }
-            } else if (_pollfds[i].revents & (POLLERR | POLLHUP | POLLNVAL)) {
-               std::cerr << "\033[31mError on fd " << _pollfds[i].fd << "\033[0m" << std::endl;
-                toRemove.push_back(_pollfds[i].fd);
-            }
-        }
-        for (size_t j = 0; j < toRemove.size(); ++j) {
-            removeClient(toRemove[j]);
-        }
-    }
+void WebServ::addserver(int fd, const Config &config) {
+	_servers[fd] = Server(config);
 }
 
-Server *Webserv::getServerByFd(int fd) {
-  for (size_t i = 0; i < _servers.size(); ++i) {
-    if (_servers[i].getFd() == fd) {
-      return &_servers[i];
-    }
-  }
-  return nullptr;
+void WebServ::addclient(int fd, const Config &config) {
+	_clients[fd] = Client(config);
 }
 
-Client *Webserv::getClientByFd(int fd) {
-  std::map<int, Client>::iterator it = _clientMap.find(fd);
-  if (it != _clientMap.end()) {
-    return &(it->second);
-  }
-  return nullptr;
+FD_type WebServ::getFDType(int fd) {
+	if (_fdInfos.find(fd) != _fdInfos.end()) {
+		return _fdInfos[fd].type;
+	}
+	throw std::runtime_error("FD not found");
 }
 
-pollfd *Webserv::getPollfdByFd(int fd) {
-  for (size_t i = 0; i < _pollfds.size(); ++i) {
-    if (_pollfds[i].fd == fd) {
-      return &_pollfds[i];
-    }
-  }
-  return nullptr;
+
+void WebServ::newConnection(int server_fd) {
+	try {
+		int client_fd = accept(server_fd, NULL, NULL);
+		if (client_fd < 0) {
+			throw std::runtime_error("Failed to accept new connection");
+		}
+		if (fcntl(client_fd, F_SETFL, O_NONBLOCK) < 0) {
+			throw std::runtime_error("Failed to set client socket to non-blocking");
+		}
+		addclient(client_fd, _servers[server_fd].getConfig());  // Create a Client object for this socket
+		addpollfd(client_fd, POLLIN); // Add the client socket to the pollfd vector
+		addinfo(client_fd, FD_CLIENT, &_clients[client_fd]);  // Store the client socket info
+		std::cout << "New connection accepted on socket " << client_fd << std::endl;
+	} catch (const std::exception &e) {
+		std::cerr << "Error in newConnection: " << e.what() << std::endl;
+	}
 }
 
-void Webserv::removeClient(int clientFd) {
-  _clientMap.erase(clientFd);
-  for (std::vector<pollfd>::iterator it = _pollfds.begin();
-       it != _pollfds.end(); ++it) {
-    if (it->fd == clientFd) {
-      _pollfds.erase(it);
-      break;
-    }
-  }
-  close(clientFd);
+#include <iostream>
+
+void WebServ::setup() {
+	// setup server socket bind lestin fcntl setsockopt
+	for (size_t i = 0; i < _configs.size(); ++i) {
+
+		sockaddr_in address;
+		address.sin_family = AF_INET;
+		address.sin_addr.s_addr = INADDR_ANY;
+		address.sin_port = htons(_configs[i].getPort());
+
+		int fd = socket(AF_INET, SOCK_STREAM, 0);
+		if (fd < 0) {
+			throw std::runtime_error("Failed to create socket");
+		}
+		if (fcntl(fd, F_SETFL, O_NONBLOCK) < 0) {
+			throw std::runtime_error("Failed to set socket to non-blocking");
+		}
+		int opt = 1;
+		if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR , &opt, sizeof(opt)) < 0) {
+			throw std::runtime_error("Failed to set socket options");
+		}
+		if (bind(fd, (struct sockaddr *)&address, sizeof(address)) < 0) {
+			throw std::runtime_error("Failed to bind socket");
+		}
+		if (listen(fd, MAX_CANON) < 0) {
+			throw std::runtime_error("Failed to listen on socket");
+		}
+		addserver(fd, _configs[i]);  // Create a Server object for this socket
+		addpollfd(fd, POLLIN); // Add the server socket to the pollfd vector
+		addinfo(fd, FD_SERVER, &_servers[fd]);  // Store the server socket info
+		std::cout  << "Server listening on port " << _configs[i].getPort() << std::endl;
+	}
 }
 
-void Webserv::readyToSend(int clientFd) {
-  pollfd *pfd = getPollfdByFd(clientFd);
-  if (pfd) {
-    pfd->events = POLLOUT;
-  }
+void WebServ::polloutprocess(int fd) {
+	// Handle POLLOUT events for the given file descriptor
+	// This is where you would write data to the client or CGI process
+	// For now, we'll just print a message
+	std::cout << "Ready to write to socket " << fd << std::endl;
+}
+
+void WebServ::pollinprocess(int fd) {
+
+	FD_type type = getFDType(fd);
+	if (type == FD_SERVER) {
+		newConnection(fd);
+	} else if (type == FD_CLIENT) {
+		readfromClient(fd);
+	} else if (type == CGI) {
+		cgiprocess(fd);
+	} else {
+		std::cerr << "Unknown FD type for socket " << fd << std::endl;
+	}
+}
+
+void WebServ::readfromClient(int fd) {
+	// std::cout << "Reading from client on socket " << fd << std::endl;
+	Client &client = _clients[fd];
+	Request &request = client.getRequest();
+	if(!request.is_header_complete()) {
+		ssize_t r = client.receivebuffer(fd);
+		if (r < 0) {
+			removeClient(fd);
+			return;
+		} else if (r == 0) {
+			removeClient(fd);
+			return;
+		}
+		request.parseHeader();
+		if(request.is_header_complete()) {
+			client.getRequest().parseHeader();
+			std::cout << "Header complete for client on socket " << fd << std::endl;
+		}
+	} else if(!client.getRequest().is_request_complete()) {
+		ssize_t r = client.receivebuffer(fd);
+		if (r < 0) {
+			removeClient(fd);
+			return;
+		} else if (r == 0) {
+			removeClient(fd);
+			return;
+		}
+		// if has content-length header keep reading until the body is complete
+		if(request.hasContentLength()) {
+			
+		} 
+	} else {
+		std::cout << "Request already complete for client on socket " << fd << std::endl;
+	}
+}
+
+
+void WebServ::cgiprocess(int fd) {
+	(void)fd;
+}
+
+void WebServ::start() {
+
+	while (true) {
+		int ret = poll(_pollfds.data(), _pollfds.size(), -1);
+		if (ret < 0) {
+			throw std::runtime_error("Poll failed");
+		}
+		for (size_t i = 0; i < _pollfds.size(); ++i) {
+
+			if (_pollfds[i].revents & POLLIN) 
+				pollinprocess(_pollfds[i].fd);
+			else if (_pollfds[i].revents & POLLOUT) 
+				polloutprocess(_pollfds[i].fd);
+			else if (_pollfds[i].revents & (POLLERR | POLLHUP | POLLNVAL)) {
+				std::cerr << "Error on socket " << _pollfds[i].fd << std::endl;
+			}
+		}
+	}
+
+}
+
+// #include <iostream>
+void WebServ::parsing(const std::string &filename) {
+	ConfigParssing configParser(filename);
+	configParser.ReadConfig();
+	configParser.removeComments();
+	configParser.tokenize();
+	configParser.parseConfig();
+	configParser.validate();
+	_configs = configParser.getConfigs();
 }

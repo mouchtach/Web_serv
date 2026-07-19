@@ -3,17 +3,16 @@ NAME = webserv
 CXX = c++
 CXXFLAGS = -Wall -Wextra -Werror -std=c++98 -g
 
-SRC = 	src/main.cpp \
-		src/webserv.cpp \
-		config/Config.cpp \
-		config/LocationConfig.cpp \
-		config/ParssingConf.cpp \
-		config/serverConfig.cpp \
-		server/utils.cpp \
-		server/server.cpp \
-		server/client.cpp \
-		http/request.cpp \
-		http/response.cpp
+SRC = main.cpp \
+	parssing/configparssing.cpp \
+	parssing/location.cpp \
+	parssing/utils.cpp \
+	parssing/config.cpp \
+	src/webserv.cpp \
+	src/client.cpp \
+	src/server.cpp \
+	http/request.cpp \
+	http/response.cpp 
 
 OBJ = $(SRC:.cpp=.o)
 

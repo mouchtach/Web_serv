@@ -1,63 +1,54 @@
 #pragma once
-#include <string>
-#include <map>
-#include <iostream>
-enum HttpMethod
-{
-    GET,
-    POST,
-    DELETE,
-    UNKNOWN
-};
 
-class Request
-{
+#include <string>
+#include "httpexception.hpp"
+#include <map>
+
+class Request {
 private:
-    std::string _rawRequest;
-    HttpMethod _method;
+    std::string _method;
     std::string _uri;
     std::string _version;
+    std::string _buffer;
     std::map<std::string, std::string> _headers;
     std::string _body;
-    size_t _contentLength;
-    
-    void parseRequestLine(const std::string& line);
-    void parseHeaders(const std::string& headersPart);
-    void parseBody(const std::string& bodyPart);
-    
+
+    bool _header_complete;
+    bool _request_complete;
+    bool has_content_length;
+    unsigned long _content_length;
+
 public:
+    Request();
+    ~Request();
 
-    bool _complete;
-    void setComplete(bool complete) { _complete = complete; }
-    bool isComplete() const { return _complete; }
-    Request() : _rawRequest(""), _complete(false) {};
-    void appendrequest(const std::string& data) {
-        _rawRequest.append(data);
-    }
 
-    HttpMethod getMethod() const {
-        return _method;
-    };
-    const std::string& getUri() const{
-        return _uri;
-    };
-    void clear_rawRequest() {
-        _rawRequest.clear();
-    }
-    std::string getRawRequest() const {
-        return _rawRequest;
-    }
-    const std::string& getVersion() const;
-    const std::string& getBody() const;
-    const std::map<std::string, std::string>& getHeaders() const;
-    // std::string getHeader(const std::string& key) const;
-    size_t getContentLength() const { return _contentLength; }
-    // void displayrequest();
-    bool validkey(const std::string& key) const;
+    void setMethod(const std::string &method);
+    void setUri(const std::string &uri);
+    void setVersion(const std::string &version);
+    void addheader(const std::string &key, const std::string &value);
+    // void appendBody(const std::string &body);
+    void setContentLength(unsigned long length);
 
-    void parseRequest();
-    HttpMethod stringToMethod(const std::string& method);
-    bool isheaderComplete();
-    bool isRequestComplete();
-    // bool hasHeader(const std::string& key) const;
+
+
+    // getters
+    const std::string &getMethod() const { return _method; }
+    const std::string &getUri() const { return _uri; }
+    const std::string &getVersion() const { return _version; }
+    const std::map<std::string, std::string> &getHeaders() const { return _headers; }
+    const std::string &getBody() const { return _body; }
+    unsigned long getContentLength() const { return _content_length; }  
+
+
+
+
+    bool is_header_complete() const ;
+    bool is_request_complete() const ;
+    bool hasContentLength() const { return has_content_length; }
+    void appendData(const char *data, size_t length);
+    void parseRequestLine(const std::string &line);
+    void parseHeaders(const std::string &headers);
+    void parseHeader();
+// 
 };
