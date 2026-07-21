@@ -24,18 +24,17 @@ Client &Client::operator=(const Client &other) {
 }
 #include <iostream>
 
-ssize_t Client::receivebuffer(int client_fd) {
-	char buffer[10];
+void Client::receiveBuffer(int client_fd) {
+	char buffer[4096];
 	ssize_t bytesRead = recv(client_fd, buffer, sizeof(buffer), 0);
 	if (bytesRead > 0) {
-		// buffer[bytesRead] = '\0'; // Null-terminate the buffer
-		// std::cout << buffer ;
 		_request.appendData(buffer, bytesRead); 
-		return bytesRead;
+		return ;
 	} else if (bytesRead == 0) {
 		std::cout << "Client disconnected on socket " << client_fd << std::endl;
-		return 0; // Connection closed
+		throw std::runtime_error("Client disconnected");
+	} else {
+		std::cerr << "Error reading from client on socket " << client_fd << std::endl;
+		throw std::runtime_error("Error reading from client");
 	}
-	std::cerr << "Error reading from client on socket " << client_fd << std::endl;
-	return -1; // Error occurred
 }

@@ -22,6 +22,7 @@ int main(int ac, char **av){
         server.parsing(filename);
         server.setup();
         server.start();
+        
         // server.displayConfigs();
     }
     catch (const std::exception &e) {

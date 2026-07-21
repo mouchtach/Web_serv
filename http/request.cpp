@@ -49,26 +49,76 @@ void Request::setContentLength(unsigned long length) {
 
 
 #include <iostream>
-void Request::parseHeader() {
-    size_t headerEnd = _buffer.find("\r\n\r\n");
-    if (headerEnd == std::string::npos)
-        return;
-    _header_complete = true;
-    std::string headerPart = _buffer.substr(0, headerEnd);
-    size_t firstLineEnd = headerPart.find("\r\n");
-    if (firstLineEnd == std::string::npos)
-        throw HttpException(400, "bad request");
-    parseRequestLine(headerPart.substr(0, firstLineEnd));
-    parseHeaders(headerPart.substr(firstLineEnd + 2));
-    //body part starts after the header
-    // appendBody(_buffer.substr(headerEnd + 4));
-    _buffer.erase(0, headerEnd + 4); // Remove the header part from the buffer
-    std::cout << "Parsed request line: " << _method << " " << _uri << " " << _version << std::endl;
-    
 
-    // check if metod is POST and if content-length is present in headers
-    if (_method == "POST" && _headers.find("Content-Length") == _headers.end())
-        throw HttpException(400, "bad request");{
+void Request::parseBody()
+{
+    _body.append(_buffer);
+    _buffer.clear();
+
+    if (_body.size() >= _content_length)
+    {
+        _body.resize(_content_length);
+        _request_complete = true;
+    }
+}
+
+bool Request::parseHeader()
+{
+    size_t headerEnd = _buffer.find("\r\n\r\n");
+
+    if (headerEnd == std::string::npos)
+        return false;
+
+    std::string header = _buffer.substr(0, headerEnd);
+
+    size_t firstLine = header.find("\r\n");
+
+    if (firstLine == std::string::npos)
+        throw HttpException(400, "Bad Request");
+
+    parseRequestLine(header.substr(0, firstLine));
+    parseHeaders(header.substr(firstLine + 2));
+
+    validateHeaders();
+
+    _buffer.erase(0, headerEnd + 4);
+
+    _header_complete = true;
+
+    return true;
+}
+
+void Request::validateHeaders()
+{
+    if (_method == "POST" && !has_content_length)
+        throw HttpException(400, "Bad Request");
+
+    if (has_content_length &&
+        _content_length > _max_body_size)
+        throw HttpException(413, "Payload Too Large");
+}
+
+bool Request::hasBody() const
+{
+    return has_content_length;
+}
+
+void Request::parse() {
+    
+    if (!_header_complete)
+    {
+        if (!parseHeader())
+            return;
+    }
+    if (hasBody())
+    {
+        parseBody();
+        if (!_request_complete)
+            return;
+    }
+    else
+    {
+        _request_complete = true;
     }
 }
 

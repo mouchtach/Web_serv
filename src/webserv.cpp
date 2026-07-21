@@ -42,7 +42,9 @@ void WebServ::addserver(int fd, const Config &config) {
 }
 
 void WebServ::addclient(int fd, const Config &config) {
-	_clients[fd] = Client(config);
+	Client client(config);
+	client.getRequest().set_max_body_size(config.getClientMaxBodySize());
+	_clients[fd] = client;
 }
 
 FD_type WebServ::getFDType(int fd) {
@@ -65,6 +67,7 @@ void WebServ::newConnection(int server_fd) {
 		addclient(client_fd, _servers[server_fd].getConfig());  // Create a Client object for this socket
 		addpollfd(client_fd, POLLIN); // Add the client socket to the pollfd vector
 		addinfo(client_fd, FD_CLIENT, &_clients[client_fd]);  // Store the client socket info
+		// set_max_body_size(_servers[server_fd].getConfig().getClientMaxBodySize());
 		std::cout << "New connection accepted on socket " << client_fd << std::endl;
 	} catch (const std::exception &e) {
 		std::cerr << "Error in newConnection: " << e.what() << std::endl;
@@ -119,7 +122,7 @@ void WebServ::pollinprocess(int fd) {
 	if (type == FD_SERVER) {
 		newConnection(fd);
 	} else if (type == FD_CLIENT) {
-		readfromClient(fd);
+		readFromClient(fd);
 	} else if (type == CGI) {
 		cgiprocess(fd);
 	} else {
@@ -127,40 +130,34 @@ void WebServ::pollinprocess(int fd) {
 	}
 }
 
-void WebServ::readfromClient(int fd) {
-	// std::cout << "Reading from client on socket " << fd << std::endl;
-	Client &client = _clients[fd];
-	Request &request = client.getRequest();
-	if(!request.is_header_complete()) {
-		ssize_t r = client.receivebuffer(fd);
-		if (r < 0) {
-			removeClient(fd);
-			return;
-		} else if (r == 0) {
-			removeClient(fd);
-			return;
-		}
-		request.parseHeader();
-		if(request.is_header_complete()) {
-			client.getRequest().parseHeader();
-			std::cout << "Header complete for client on socket " << fd << std::endl;
-		}
-	} else if(!client.getRequest().is_request_complete()) {
-		ssize_t r = client.receivebuffer(fd);
-		if (r < 0) {
-			removeClient(fd);
-			return;
-		} else if (r == 0) {
-			removeClient(fd);
-			return;
-		}
-		// if has content-length header keep reading until the body is complete
-		if(request.hasContentLength()) {
-			
-		} 
-	} else {
-		std::cout << "Request already complete for client on socket " << fd << std::endl;
-	}
+void WebServ::readFromClient(int fd)
+{
+    Client &client = _clients[fd];
+    Request &request = client.getRequest();
+    char buffer[4096];
+    ssize_t n = recv(fd, buffer, sizeof(buffer), 0);
+    if (n == 0)
+    {
+		std::cout << "Client disconnected on socket " << fd << std::endl;
+        removeClient(fd);
+        return;
+    }
+    if (n < 0)
+    {
+		std::cout << "Error reading from client on socket " << fd << std::endl;
+        removeClient(fd);
+        return;
+    }
+    request.appendData(buffer, n);
+    request.parse();
+    if (!request.isRequestComplete())
+        return;
+
+    // Process request
+    client.handleRequest();
+
+    // Ready to send
+    changePollToWrite(fd);
 }
 
 
@@ -176,17 +173,21 @@ void WebServ::start() {
 			throw std::runtime_error("Poll failed");
 		}
 		for (size_t i = 0; i < _pollfds.size(); ++i) {
-
-			if (_pollfds[i].revents & POLLIN) 
-				pollinprocess(_pollfds[i].fd);
-			else if (_pollfds[i].revents & POLLOUT) 
-				polloutprocess(_pollfds[i].fd);
-			else if (_pollfds[i].revents & (POLLERR | POLLHUP | POLLNVAL)) {
-				std::cerr << "Error on socket " << _pollfds[i].fd << std::endl;
+			try {
+				if (_pollfds[i].revents & POLLIN) 
+					pollinprocess(_pollfds[i].fd);
+				else if (_pollfds[i].revents & POLLOUT) 
+					polloutprocess(_pollfds[i].fd);
+				else if (_pollfds[i].revents & (POLLERR | POLLHUP | POLLNVAL)) {
+					std::cerr << "Error on socket " << _pollfds[i].fd << std::endl;
+					removeClient(_pollfds[i].fd);
+				}
+			} catch (const std::exception &e) {
+				std::cerr << "Exception in poll processing for socket " << _pollfds[i].fd << ": " << e.what() << std::endl;
+				removeClient(_pollfds[i].fd);
 			}
 		}
 	}
-
 }
 
 // #include <iostream>
@@ -199,3 +200,4 @@ void WebServ::parsing(const std::string &filename) {
 	configParser.validate();
 	_configs = configParser.getConfigs();
 }
+	

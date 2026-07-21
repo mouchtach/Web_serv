@@ -38,7 +38,7 @@ public:
     void setup();
     // process
     void newConnection(int server_fd);
-    void readfromClient(int fd);
+    void readFromClient(int fd);
     void cgiprocess(int fd);
     void pollinprocess(int fd);
     void polloutprocess(int fd);
@@ -48,6 +48,14 @@ public:
     void addpollfd(int fd, short events);
     void addserver(int fd, const Config &config);
     void addclient(int fd, const Config &config);
+    void changePollToWrite(int fd) {
+        for (std::vector<pollfd>::iterator it = _pollfds.begin(); it != _pollfds.end(); ++it) {
+            if (it->fd == fd) {
+                it->events = POLLOUT;
+                break;
+            }
+        }
+    }
     FD_type getFDType(int fd);
     // void displayConfigs() const;
     void removeClient(int fd) {

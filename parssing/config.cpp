@@ -20,6 +20,7 @@ Config &Config::operator=(const Config &other) {
 		_clientMaxBodySize = other._clientMaxBodySize;
 		_errorPages = other._errorPages;
 		_methods = other._methods;
+		// _hasmaxbodysize = other._hasmaxbodysize;
 	}
 	return *this;
 }
