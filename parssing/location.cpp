@@ -71,17 +71,20 @@ void Location::overrideLocation(const std::vector<std::string> &tokens, size_t &
         throw std::runtime_error("location '" + _path + "': 'cgi_path' missing value");
       setCgiPath(tokens[i++]);
     } else if (directive == "return") {
-      if (i >= tokens.size())
+      if (i >= tokens.size()) {
         throw std::runtime_error("location '" + _path + "': 'return' missing value");
-        std::pair<int, std::string> ret;
-        ret.first = std::stoi(tokens[i++]);
-        if (i >= tokens.size())
-            throw std::runtime_error("location '" + _path + "': 'return' missing URL");
-        ret.second = stripSemicolon(tokens[i++]);
+      }
+      std::pair<int, std::string> ret;
+      ret.first = strToInt(tokens[i++]);
+      if (i >= tokens.size()) {
+        throw std::runtime_error("location '" + _path + "': 'return' missing URL");
+      }
+      ret.second = stripSemicolon(tokens[i++]);
 
-        if (ret.second.empty())
-            throw std::runtime_error("location '" + _path + "': 'return' URL is empty");
-        setReturn(ret);
+      if (ret.second.empty()) {
+        throw std::runtime_error("location '" + _path + "': 'return' URL is empty");
+      }
+      setReturn(ret);
     } else {
       throw std::runtime_error("location '" + _path + "': Unknown directive '" + directive + "'");
     }

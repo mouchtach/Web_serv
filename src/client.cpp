@@ -11,15 +11,22 @@ Client::Client() {
 Client::~Client() {
 }
 
-Client::Client(const Client &other) : _config(other._config) {
+Client::Client(const Client &other) : _config(other._config), _request(other._request), _response(other._response), _token(other._token) {
 }
 
 Client::Client(const Config &config) : _config(config) {
+	// set the maximum body size for the request based on the configuration
+	_request.set_max_body_size(_config.getClientMaxBodySize());
+	std::cout << "Client created with max body size: " << _config.getClientMaxBodySize() << std::endl;
 }
 
 Client &Client::operator=(const Client &other) {
-	if (this != &other)
+	if (this != &other) {
 		_config = other._config;
+		_request = other._request;
+		_response = other._response;
+		_token = other._token;
+	}
 	return *this;
 }
 #include <iostream>

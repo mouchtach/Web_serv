@@ -4,6 +4,7 @@
 #include "../http/request.hpp"
 #include "../http/response.hpp"
 #include <iostream>
+#include <cstdlib>
 
 class Client {
 private:
@@ -42,6 +43,10 @@ public:
             std::cout << it->first << ": " << it->second << std::endl;
         }
         std::cout << "Body: " << _request.getBody() << std::endl;
+        // max body size
+        std::cout << "Max body size: " << _config.getClientMaxBodySize() << std::endl;
+        // max body size on request
+        std::cout << "Max body size on request: " << _request.get_max_body_size() << std::endl;
         // Here you would implement the logic to handle the request and generate a response
         // For now, we just set a simple response
         // _response.setBuffer("HTTP/1.1 200 OK\r\nContent-Length: 13\r\n\r\nHello, World!");

@@ -17,8 +17,8 @@ private:
     bool _header_complete;
     bool _request_complete;
     bool has_content_length;
-    unsigned long _content_length;
-    unsigned long _max_body_size; 
+    size_t _content_length;
+    size_t _max_body_size; 
 
 public:
     Request();
@@ -26,11 +26,11 @@ public:
 
 
     void setMethod(const std::string &method);
-    void set_max_body_size(unsigned long max_body_size) { _max_body_size = max_body_size; }
+    void set_max_body_size(size_t max_body_size) { _max_body_size = max_body_size; }
     void setUri(const std::string &uri);
     void setVersion(const std::string &version);
-    void addheader(const std::string &key, const std::string &value);
-    void setContentLength(unsigned long length);
+    void addheader(std::string &key, std::string &value);
+    void setContentLength(size_t length);
     void set_request_complete(bool complete) { _request_complete = complete; }
     bool is_content_length_done() const { return _body.size() >= _content_length; }
     bool parseHeader();
@@ -39,6 +39,7 @@ public:
     void parse();
     bool hasBody() const;
     bool isRequestComplete() const { return _request_complete; }
+
     // getters
     const std::string &getMethod() const { return _method; }
     const std::string &getUri() const { return _uri; }
@@ -46,8 +47,8 @@ public:
     const std::map<std::string, std::string> &getHeaders() const { return _headers; }
     const std::string &getBody() const { return _body; }
     const std::string &getBuffer() const { return _buffer; }
-    unsigned long getContentLength() const { return _content_length; }  
-
+    size_t getContentLength() const { return _content_length; }  
+    size_t get_max_body_size() const { return _max_body_size; }
 
 
 

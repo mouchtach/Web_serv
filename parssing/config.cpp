@@ -1,6 +1,7 @@
 #include "config.hpp"
 #include "location.hpp"
 #include "utils.hpp"
+#include <cstdlib>
 #include <stdexcept>
 
 Config::Config() : _port(0), _autoindex(false), _clientMaxBodySize(0) {}

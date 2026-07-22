@@ -42,9 +42,7 @@ void WebServ::addserver(int fd, const Config &config) {
 }
 
 void WebServ::addclient(int fd, const Config &config) {
-	Client client(config);
-	client.getRequest().set_max_body_size(config.getClientMaxBodySize());
-	_clients[fd] = client;
+	_clients[fd] = Client(config);
 }
 
 FD_type WebServ::getFDType(int fd) {
@@ -99,7 +97,8 @@ void WebServ::setup() {
 		if (bind(fd, (struct sockaddr *)&address, sizeof(address)) < 0) {
 			throw std::runtime_error("Failed to bind socket");
 		}
-		if (listen(fd, MAX_CANON) < 0) {
+		// Use system maximum backlog if available
+		if (listen(fd, SOMAXCONN) < 0) {
 			throw std::runtime_error("Failed to listen on socket");
 		}
 		addserver(fd, _configs[i]);  // Create a Server object for this socket
@@ -185,7 +184,8 @@ void WebServ::start() {
 			} catch (const std::exception &e) {
 				std::cerr << "Exception in poll processing for socket " << _pollfds[i].fd << ": " << e.what() << std::endl;
 				removeClient(_pollfds[i].fd);
-			}
+			}  
+			
 		}
 	}
 }

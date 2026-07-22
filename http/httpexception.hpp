@@ -12,6 +12,9 @@ public:
         return _message;
     }
     virtual ~HttpException() throw() {}
+    virtual const char* what() const throw() {
+        return _message.c_str();
+    }
 
 private:
     int _statusCode;

@@ -1,4 +1,6 @@
 #include "request.hpp"
+#include "../parssing/utils.hpp"
+#include <cstdlib>
 
 Request::Request() : _header_complete(false), _request_complete(false), has_content_length(false) {}
 
@@ -11,6 +13,9 @@ void Request::setMethod(const std::string &method) {
     _method = method;
 }
 void Request::setUri(const std::string &uri) {
+    // uri ndirectory traversal  throw exception if uri contains ".."
+    if (uri.find("..") != std::string::npos)
+        throw HttpException(403, "not allowed");
     if (uri.empty())
         throw HttpException(400, "bad request");
     _uri = uri;
@@ -33,17 +38,32 @@ void Request::appendData(const char *data, size_t length) {
     _buffer.append(data, length);
 }
 
-void Request::addheader(const std::string &key, const std::string &value) {
-    _headers[key] = value;
-}
-// void Request::appendBody(const std::string &body) {
-//     _body += body;
-//     if (_body.size() >= _content_length) {
-//         re = true;
-//     }
-// }
+void Request::addheader(std::string &key, std::string &value) {
+    // convet to lower case
+    toLowerCase(key);
+    toLowerCase(value);
 
-void Request::setContentLength(unsigned long length) {
+    if (key == "content-length") {
+        // check if value is a number
+        for (size_t i = 0; i < value.size(); ++i)
+            if (!isdigit(value[i]))
+                throw HttpException(400, "bad request");    
+        setContentLength(std::strtoul(value.c_str(), NULL, 10));
+        has_content_length = true;
+    }
+
+    if (key.find(' ') != std::string::npos || key.empty() || value.empty())
+        throw HttpException(400, "bad request");
+    if (value.find(':') != std::string::npos || value.find(':') != std::string::npos)
+        throw HttpException(400, "bad request");
+    if (_headers.find(key) != _headers.end())
+        throw HttpException(400, "bad request");
+    _headers[key] = value;
+
+}
+
+
+void Request::setContentLength(size_t length) {
     _content_length = length;
 }
 
@@ -54,7 +74,9 @@ void Request::parseBody()
 {
     _body.append(_buffer);
     _buffer.clear();
-
+    if (!_body.empty() && _content_length == 0)
+        throw HttpException(400, "bad request");
+        
     if (_body.size() >= _content_length)
     {
         _body.resize(_content_length);
@@ -90,12 +112,21 @@ bool Request::parseHeader()
 
 void Request::validateHeaders()
 {
-    if (_method == "POST" && !has_content_length)
-        throw HttpException(400, "Bad Request");
+    // check duplicate headers key 
 
-    if (has_content_length &&
-        _content_length > _max_body_size)
+
+
+    if (_method == "POST" && !has_content_length)
+    {
+        std::cerr << "POST request without Content-Length header" << std::endl;
+        throw HttpException(400, "Bad Request");
+    }
+      
+
+    if (has_content_length && _content_length > _max_body_size)
         throw HttpException(413, "Payload Too Large");
+    
+
 }
 
 bool Request::hasBody() const
@@ -136,6 +167,8 @@ void Request::parseRequestLine(const std::string &line) {
 }
 
 void Request::parseHeaders(const std::string &headers) {
+    // handle duplicate headers key
+
     size_t start = 0;
     while (start < headers.size()) {
         size_t end = headers.find("\r\n", start);
@@ -144,16 +177,17 @@ void Request::parseHeaders(const std::string &headers) {
         std::string line = headers.substr(start, end - start);
         size_t colonPos = line.find(':');
         if (colonPos != std::string::npos) {
+            // throw exception if missing_colon_in_header
+
             std::string key = line.substr(0, colonPos);
             std::string value = line.substr(colonPos + 1);
-            // set content length header to the value of content-length
-            if (key == "Content-Length") {
-                setContentLength(std::stoul(value));
-                has_content_length = true;
-            }
+            // check key if ready to use
             value.erase(0, value.find_first_not_of(" \t"));
             value.erase(value.find_last_not_of(" \t") + 1);
             addheader(key, value);
+        }
+        else {
+            throw HttpException(400, "bad request");
         }
         start = end + 2; // Move past "\r\n"
     }
