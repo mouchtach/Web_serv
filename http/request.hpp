@@ -3,6 +3,7 @@
 #include <string>
 #include "httpexception.hpp"
 #include <map>
+#include <iostream>
 
 class Request {
 private:
@@ -18,13 +19,12 @@ private:
     bool _request_complete;
     bool has_content_length;
     size_t _content_length;
-    size_t _max_body_size; 
+    size_t _max_body_size;
+    std::string _token;
 
 public:
     Request();
     ~Request();
-
-
     void setMethod(const std::string &method);
     void set_max_body_size(size_t max_body_size) { _max_body_size = max_body_size; }
     void setUri(const std::string &uri);
@@ -32,6 +32,17 @@ public:
     void addheader(std::string &key, std::string &value);
     void setContentLength(size_t length);
     void set_request_complete(bool complete) { _request_complete = complete; }
+    void setToken(const std::string &token) {
+        std::cout << "Setting token from header: " << token << std::endl;
+        size_t s = token.find("=");
+        if (s != std::string::npos)
+            _token = token.substr(s + 1);
+        else 
+            _token = "";
+        std::cout << "Token set to: " << _token << std::endl;
+    }
+
+    std::string getToken() const { return _token; }
     bool is_content_length_done() const { return _body.size() >= _content_length; }
     bool parseHeader();
     void parseBody();

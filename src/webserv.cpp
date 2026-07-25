@@ -41,8 +41,8 @@ void WebServ::addserver(int fd, const Config &config) {
 	_servers[fd] = Server(config);
 }
 
-void WebServ::addclient(int fd, const Config &config) {
-	_clients[fd] = Client(config);
+void WebServ::addclient(int fd, const Config &config, std::vector<std::string> &tokens) {
+	_clients[fd] = Client(config, tokens);
 }
 
 FD_type WebServ::getFDType(int fd) {
@@ -62,7 +62,7 @@ void WebServ::newConnection(int server_fd) {
 		if (fcntl(client_fd, F_SETFL, O_NONBLOCK) < 0) {
 			throw std::runtime_error("Failed to set client socket to non-blocking");
 		}
-		addclient(client_fd, _servers[server_fd].getConfig());  // Create a Client object for this socket
+		addclient(client_fd, _servers[server_fd].getConfig(), _tokens);  // Create a Client object for this socket
 		addpollfd(client_fd, POLLIN); // Add the client socket to the pollfd vector
 		addinfo(client_fd, FD_CLIENT, &_clients[client_fd]);  // Store the client socket info
 		// set_max_body_size(_servers[server_fd].getConfig().getClientMaxBodySize());
@@ -123,7 +123,7 @@ void WebServ::pollinprocess(int fd) {
 	} else if (type == FD_CLIENT) {
 		readFromClient(fd);
 	} else if (type == CGI) {
-		cgiprocess(fd);
+		cgiProcess(fd);
 	} else {
 		std::cerr << "Unknown FD type for socket " << fd << std::endl;
 	}
@@ -153,15 +153,44 @@ void WebServ::readFromClient(int fd)
         return;
 
     // Process request
-    client.handleRequest();
+    handleRequest(fd);
 
     // Ready to send
     changePollToWrite(fd);
 }
 
+void WebServ::set_CgiRequirements(Client &client) {
+	int fds[2];
+	if (pipe(fds) == -1) {
+		throw std::runtime_error("Failed to create pipe for CGI");
+	}
+	addpollfd(fds[0], POLLIN);
+	addinfo(fds[0], CGI, &client);
+	addpollfd(fds[1], POLLOUT);
+	addinfo(fds[1], CGI, &client);
+}
 
-void WebServ::cgiprocess(int fd) {
-	(void)fd;
+
+void WebServ::cgiProcess(int fd) {
+
+	set_CgiRequirements(_clients[fd]);
+}
+
+
+void WebServ::handleRequest(int fd) {
+	Client &client = _clients[fd];
+
+	client.matchLocation();
+	client.checkAccess();
+	if (!client.isMethodeAllowed()) {
+		throw HttpException(405, "Method Not Allowed");
+	}
+	if (client.getMatchedLocation().getPath() == "/sigup" || client.getMatchedLocation().getPath() == "/login" || client.getMatchedLocation().getPath() == "/cgi") {
+		cgiProcess(fd);
+	} 
+
+
+
 }
 
 void WebServ::start() {

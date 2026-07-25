@@ -1,6 +1,8 @@
 #pragma once
 
+#include "redirectException.hpp"
 #include "../parssing/config.hpp"
+#include "../parssing/location.hpp"
 #include "../http/request.hpp"
 #include "../http/response.hpp"
 #include <iostream>
@@ -12,13 +14,14 @@ private:
     Config _config;
     Request _request;
     Response _response;
-    std::string _token;
+    Location _matchedLocation;
+    std::vector<std::string> _tokens;
 
 public:
     Client();
     ~Client();
     Client(const Client &other);
-    Client(const Config &config);
+    Client(const Config &config, const std::vector<std::string> &tokens);
     Client &operator=(const Client &other);
 
     void receiveBuffer(int fd);
@@ -33,25 +36,56 @@ public:
         return _config;
     }
 
-    void handleRequest() {
-        // display request information
-        std::cout << "Received request:" << std::endl;
-        std::cout << "Method: " << _request.getMethod() << std::endl;
-        std::cout << "URI: " << _request.getUri() << std::endl;
-        std::cout << "Headers:" << std::endl;
-        for (std::map<std::string, std::string>::const_iterator it = _request.getHeaders().begin(); it != _request.getHeaders().end(); ++it) {
-            std::cout << it->first << ": " << it->second << std::endl;
+    bool validateToken(std::string token);
+
+    void matchLocation() {
+        const std::vector<Location> &locations = _config.getLocations();
+        const std::string &requestUri = _request.getUri();
+        for (std::vector<Location>::const_iterator it = locations.begin(); it != locations.end(); ++it) {
+            const Location &location = *it;
+            const std::string &locationPath = location.getPath();
+            if (requestUri.compare(0, locationPath.length(), locationPath) == 0) {
+                _matchedLocation = location;
+            }
         }
-        std::cout << "Body: " << _request.getBody() << std::endl;
-        // max body size
-        std::cout << "Max body size: " << _config.getClientMaxBodySize() << std::endl;
-        // max body size on request
-        std::cout << "Max body size on request: " << _request.get_max_body_size() << std::endl;
-        // Here you would implement the logic to handle the request and generate a response
-        // For now, we just set a simple response
-        // _response.setBuffer("HTTP/1.1 200 OK\r\nContent-Length: 13\r\n\r\nHello, World!");
-        exit(0);
     }
+
+    Location getMatchedLocation() {
+        return _matchedLocation;
+    }
+    
+
+    bool isMethodeAllowed() {
+        const std::vector<std::string> &allowedMethods = _matchedLocation.getMethods();
+        if (allowedMethods.empty()) {
+            return true; // If no methods are specified, allow all methods
+        }
+        const std::string &requestMethod = _request.getMethod();
+        for (std::vector<std::string>::const_iterator it = allowedMethods.begin(); it != allowedMethods.end(); ++it) {
+            if (*it == requestMethod) {
+                return true;
+            }
+        }
+        return false; // Method not allowed
+    }
+
+    void checkAccess() {
+        
+        const std::string &locationPath = _matchedLocation.getPath();
+        if (_matchedLocation.getPath() == "/sigup" && validateToken(_request.getToken())) {
+            throw redirectException("/home");
+        } else if (_matchedLocation.getPath() == "/login" && !validateToken(_request.getToken())) {
+            throw redirectException("/login");
+        } else if (_matchedLocation.getPath() == "/sigup" && !validateToken(_request.getToken())) {
+            std::cout << "Access granted to /sigup" << std::endl;
+        } else if(!validateToken(_request.getToken())) {
+            throw redirectException("/login");
+        } else {
+            std::cout << "Access granted to " << locationPath << std::endl;
+        }
+    }
+
+
     // bool hascontentlength() const {
     //     return _config.getClientMaxBodySize() > 0;
     // }

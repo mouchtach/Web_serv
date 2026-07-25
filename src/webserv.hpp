@@ -30,6 +30,7 @@ private:
     std::map<int , Server> _servers;
     std::map<int , Client> _clients;
     std::map<int , FD_info> _fdInfos;
+    std::vector<std::string> _tokens;
 public:
     WebServ();
     ~WebServ();
@@ -40,15 +41,18 @@ public:
     // process
     void newConnection(int server_fd);
     void readFromClient(int fd);
-    void cgiprocess(int fd);
+    void cgiProcess(int fd);
+    void set_CgiRequirements(Client &client);
     void pollinprocess(int fd);
     void polloutprocess(int fd);
     void parsing(const std::string &filename);
 
+
+    void handleRequest(int fd);
     void addinfo(int fd, FD_type type, void *obj);
     void addpollfd(int fd, short events);
     void addserver(int fd, const Config &config);
-    void addclient(int fd, const Config &config);
+    void addclient(int fd, const Config &config, std::vector<std::string> &tokens);
     void changePollToWrite(int fd) {
         for (std::vector<pollfd>::iterator it = _pollfds.begin(); it != _pollfds.end(); ++it) {
             if (it->fd == fd) {

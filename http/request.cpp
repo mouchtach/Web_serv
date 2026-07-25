@@ -43,6 +43,9 @@ void Request::addheader(std::string &key, std::string &value) {
     toLowerCase(key);
     toLowerCase(value);
 
+    if (key == "cookie") {
+        setToken(value);
+    }
     if (key == "content-length") {
         // check if value is a number
         for (size_t i = 0; i < value.size(); ++i)
@@ -54,8 +57,8 @@ void Request::addheader(std::string &key, std::string &value) {
 
     if (key.find(' ') != std::string::npos || key.empty() || value.empty())
         throw HttpException(400, "bad request");
-    if (value.find(':') != std::string::npos || value.find(':') != std::string::npos)
-        throw HttpException(400, "bad request");
+    // if (value.find(':') != std::string::npos || value.find(':') != std::string::npos)
+    //     throw HttpException(400, "bad request");
     if (_headers.find(key) != _headers.end())
         throw HttpException(400, "bad request");
     _headers[key] = value;
@@ -181,6 +184,8 @@ void Request::parseHeaders(const std::string &headers) {
 
             std::string key = line.substr(0, colonPos);
             std::string value = line.substr(colonPos + 1);
+            if (key == "Cookie" || key == "cookie")
+                setToken(value);
             // check key if ready to use
             value.erase(0, value.find_first_not_of(" \t"));
             value.erase(value.find_last_not_of(" \t") + 1);

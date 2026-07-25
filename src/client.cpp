@@ -11,10 +11,10 @@ Client::Client() {
 Client::~Client() {
 }
 
-Client::Client(const Client &other) : _config(other._config), _request(other._request), _response(other._response), _token(other._token) {
+Client::Client(const Client &other) : _config(other._config), _request(other._request), _response(other._response) {
 }
 
-Client::Client(const Config &config) : _config(config) {
+Client::Client(const Config &config, const std::vector<std::string> &tokens) : _config(config), _tokens(tokens) {
 	// set the maximum body size for the request based on the configuration
 	_request.set_max_body_size(_config.getClientMaxBodySize());
 	std::cout << "Client created with max body size: " << _config.getClientMaxBodySize() << std::endl;
@@ -25,7 +25,6 @@ Client &Client::operator=(const Client &other) {
 		_config = other._config;
 		_request = other._request;
 		_response = other._response;
-		_token = other._token;
 	}
 	return *this;
 }
@@ -44,4 +43,14 @@ void Client::receiveBuffer(int client_fd) {
 		std::cerr << "Error reading from client on socket " << client_fd << std::endl;
 		throw std::runtime_error("Error reading from client");
 	}
+}
+
+bool Client::validateToken(std::string token) {
+	// find the token in the _tokens vector
+	for (std::vector<std::string>::const_iterator it = _tokens.begin(); it != _tokens.end(); ++it) {
+		if (*it == token) {
+			return true; // token is valid
+		}
+	}
+	return false; // token is not valid
 }
