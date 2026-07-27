@@ -47,7 +47,7 @@ public:
     void polloutprocess(int fd);
     void parsing(const std::string &filename);
 
-
+    void child_process_cgi();
     void handleRequest(int fd);
     void addinfo(int fd, FD_type type, void *obj);
     void addpollfd(int fd, short events);

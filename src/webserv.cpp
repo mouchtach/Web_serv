@@ -168,12 +168,36 @@ void WebServ::set_CgiRequirements(Client &client) {
 	addinfo(fds[0], CGI, &client);
 	addpollfd(fds[1], POLLOUT);
 	addinfo(fds[1], CGI, &client);
+	// set passwd and username on  env for cgi	
+
+	
+
+}
+
+void WebServ::child_process_cgi() {
+	pid_t pid = fork();
+	if (pid < 0) {
+		throw std::runtime_error("Failed to fork for CGI process");
+	}
+	if (pid == 0) {
+		// Child process
+		// Set up environment variables, redirect input/output, and execute CGI script
+		// For example:
+		// dup2(input_fd, STDIN_FILENO);
+		// dup2(output_fd, STDOUT_FILENO);
+		// execve(cgi_script_path, args, envp);
+		exit(0); // Exit child process after execution
+	} else {
+		// Parent process
+		// Optionally wait for the child process or handle it asynchronously
+	}
 }
 
 
 void WebServ::cgiProcess(int fd) {
 
 	set_CgiRequirements(_clients[fd]);
+	child_process_cgi();
 }
 
 
