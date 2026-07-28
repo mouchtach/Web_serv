@@ -17,11 +17,26 @@ private:
     Location _matchedLocation;
     std::vector<std::string> _tokens;
 
+    int _fd;                 // the client's own socket fd (needed to route back)
+    pid_t _cgiPid;
+    int   _cgiOutFd;         // read end, registered with poll
+    std::string _cgiOutput;  // accumulated raw CGI output
+
+public:
+    void setFd(int fd) { _fd = fd; }
+    int  getFd() const { return _fd; }
+    void setCgiPid(pid_t p) { _cgiPid = p; }
+    pid_t getCgiPid() const { return _cgiPid; }
+    void setCgiOutFd(int fd) { _cgiOutFd = fd; }
+    int  getCgiOutFd() const { return _cgiOutFd; }
+    void appendCgiOutput(const char *buf, size_t n) { _cgiOutput.append(buf, n); }
+    const std::string &getCgiOutput() const { return _cgiOutput; }
+
 public:
     Client();
     ~Client();
     Client(const Client &other);
-    Client(const Config &config, const std::vector<std::string> &tokens);
+    Client(const Config &config, const std::vector<std::string> &tokens, int fd);
     Client &operator=(const Client &other);
 
     void receiveBuffer(int fd);
@@ -89,4 +104,13 @@ public:
     // bool hascontentlength() const {
     //     return _config.getClientMaxBodySize() > 0;
     // }
+public:
+    void processStatic();
+private:
+    void handleStaticGET(const std::string &target, const std::string &uri);
+    void handleStaticPOST(const std::string &target);
+    void handleStaticDELETE(const std::string &target);
+    void sendFile(const std::string &filepath);
+    void processAutoIndex(const std::string &uri, const std::string &target);
+    void redirect(int code, const std::string &newLocation);
 };

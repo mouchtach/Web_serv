@@ -4,6 +4,9 @@
 
 #include <sys/socket.h>
 #include <unistd.h>
+#include "static_utils.hpp"
+#include <sys/stat.h>
+#include <fstream>
 
 Client::Client() {
 }
@@ -14,7 +17,13 @@ Client::~Client() {
 Client::Client(const Client &other) : _config(other._config), _request(other._request), _response(other._response) {
 }
 
-Client::Client(const Config &config, const std::vector<std::string> &tokens) : _config(config), _tokens(tokens) {
+// Client::Client(const Config &config, const std::vector<std::string> &tokens) : _config(config), _tokens(tokens) {
+// 	// set the maximum body size for the request based on the configuration
+// 	_request.set_max_body_size(_config.getClientMaxBodySize());
+// 	std::cout << "Client created with max body size: " << _config.getClientMaxBodySize() << std::endl;
+// }
+
+Client::Client(const Config &config, const std::vector<std::string> &tokens, int fd) : _config(config), _tokens(tokens), _fd(fd) {
 	// set the maximum body size for the request based on the configuration
 	_request.set_max_body_size(_config.getClientMaxBodySize());
 	std::cout << "Client created with max body size: " << _config.getClientMaxBodySize() << std::endl;
@@ -53,4 +62,126 @@ bool Client::validateToken(std::string token) {
 		}
 	}
 	return false; // token is not valid
+}
+
+void Client::sendFile(const std::string &filepath) {
+    std::string content = readFile(filepath);
+    if (content.empty()) {
+        _response.sendError(404, "Not Found");
+        return;
+    }
+    _response.setVersion(_request.getVersion());
+    _response.setStatusCode(200, "OK");
+    _response.setHeader("Content-Type", getMimeType(filepath));
+    _response.setBody(content);
+    _response.buildResponse();
+}
+
+void Client::redirect(int code, const std::string &newLocation) {
+    _response.setVersion(_request.getVersion());
+    _response.setStatusCode(code, "Moved Permanently");
+    _response.setHeader("Location", newLocation);
+    _response.setHeader("Content-Length", "0");
+    _response.buildResponse();
+}
+
+void Client::processAutoIndex(const std::string &uri, const std::string &target) {
+    std::string html = buildAutoIndex(target, uri);
+    if (html.empty()) {
+        _response.sendError(403, "Forbidden");
+        return;
+    }
+    _response.setVersion(_request.getVersion());
+    _response.setStatusCode(200, "OK");
+    _response.setHeader("Content-Type", "text/html");
+    _response.setBody(html);
+    _response.buildResponse();
+}
+
+void Client::handleStaticGET(const std::string &target, const std::string &uri) {
+    struct stat st;
+    if (stat(target.c_str(), &st) == -1) {
+        _response.sendError(404, "Not Found");
+        return;
+    }
+    if (S_ISREG(st.st_mode)) {
+        sendFile(target);
+        return;
+    }
+    if (S_ISDIR(st.st_mode)) {
+        if (uri.empty() || uri[uri.size()-1] != '/') {
+            redirect(301, uri + "/");
+            return;
+        }
+        std::string indexPath = appendPath(target, _matchedLocation.getIndex());
+        struct stat ist;
+        if (!_matchedLocation.getIndex().empty() && stat(indexPath.c_str(), &ist) == 0 && S_ISREG(ist.st_mode)) {
+            sendFile(indexPath);
+            return;
+        }
+        if (_matchedLocation.getAutoindex()) {
+            processAutoIndex(uri, target);
+            return;
+        }
+        _response.sendError(403, "Forbidden");
+        return;
+    }
+    _response.sendError(403, "Forbidden");
+}
+
+void Client::handleStaticPOST(const std::string &target) {
+    // simple "write raw body to file at target" upload — adjust to your multipart parsing if needed
+    std::ofstream out(target.c_str(), std::ios::binary);
+    if (!out) {
+        _response.sendError(500, "Internal Server Error");
+        return;
+    }
+    out << _request.getBody();
+    out.close();
+    _response.setVersion(_request.getVersion());
+    _response.setStatusCode(200, "OK");
+    _response.setHeader("Content-Length", "0");
+    _response.buildResponse();
+}
+
+void Client::handleStaticDELETE(const std::string &target) {
+    struct stat st;
+    if (stat(target.c_str(), &st) == -1) {
+        _response.sendError(404, "Not Found");
+        return;
+    }
+    if (remove(target.c_str()) != 0) {
+        _response.sendError(500, "Internal Server Error");
+        return;
+    }
+    _response.setVersion(_request.getVersion());
+    _response.setStatusCode(200, "OK");
+    _response.setHeader("Content-Length", "0");
+    _response.buildResponse();
+}
+
+
+
+void Client::processStatic() {
+    const std::string &uri = _request.getUri();
+    if (!isPathSafe(uri)) {
+        _response.sendError(403, "Forbidden");
+        return;
+    }
+
+    std::string root = _matchedLocation.getRoot();
+    std::string locPath = _matchedLocation.getPath();
+    std::string suffix = _matchedLocation.isRootOverridden()
+        ? uri.substr(locPath.size())
+        : uri;
+    std::string target = appendPath(root, suffix);
+
+    if (_request.getMethod() == "GET")
+        handleStaticGET(target, uri);
+    else if (_request.getMethod() == "POST")
+        handleStaticPOST(target);
+    else if (_request.getMethod() == "DELETE")
+        handleStaticDELETE(target);
+    else
+        _response.sendError(501, "Not Implemented");
 }

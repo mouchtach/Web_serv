@@ -11,6 +11,7 @@ SRC = main.cpp \
 	src/webserv.cpp \
 	src/client.cpp \
 	src/server.cpp \
+	src/static_utils.cpp \
 	http/request.cpp \
 	http/response.cpp 
 

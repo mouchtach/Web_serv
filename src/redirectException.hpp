@@ -8,6 +8,7 @@ private:
     std::string _redirectUrl;
 public:
     redirectException(const std::string &new_path) : _redirectUrl(new_path) {}
+    virtual ~redirectException() throw() {}
     const char* what() const throw() {
         return "Redirect Exception";
     }

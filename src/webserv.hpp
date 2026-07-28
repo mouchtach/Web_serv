@@ -74,4 +74,7 @@ public:
         }
         close(fd);
     }
+    void startCgi(int client_fd);          // called from handleRequest
+    std::vector<std::string> buildCgiEnv(Client &client, const std::string &scriptPath);
+    void finalizeCgiResponse(Client &client);
 };
