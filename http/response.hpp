@@ -56,4 +56,5 @@ public:
 
     // generic fallback error page builder (used outside CGI too, e.g. 404/403/500)
     void sendError(int code, const std::string &message, const std::string &customBody = "");
+    
 };

@@ -111,10 +111,35 @@ void WebServ::setup() {
 }
 
 void WebServ::polloutprocess(int fd) {
-	// Handle POLLOUT events for the given file descriptor
-	// This is where you would write data to the client or CGI process
-	// For now, we'll just print a message
-	std::cout << "Ready to write to socket " << fd << std::endl;
+	// non blokiing send
+	Client &client = _clients[fd];
+	Response &response = client.getResponse();
+	const std::string &responseStr = response.getRawResponse();
+	size_t sentBytes = response.getSentBytes();
+	std::cout << "bytes sent so far: " << sentBytes << std::endl;
+	if (sentBytes >= responseStr.size()) {
+		std::cout << "Full response sent to client on socket " << fd << std::endl;
+		std::cout << "Response : " << responseStr << std::endl;
+		removeClient(fd);
+		exit(0);
+		return;
+	}
+	ssize_t bytesSent = send(fd, responseStr.c_str() + sentBytes, responseStr.size() - sentBytes, 0);
+	if (bytesSent < 0) {
+		std::cerr << "Error sending response to client on socket " << fd << std::endl;
+		removeClient(fd);
+		return;	
+	}
+	response.addBytesSent(bytesSent);
+	if (!response.isFullySent()) {
+		std::cout << "Partial response sent to client on socket " << fd << std::endl;
+	} else {
+		std::cout << "Full response sent to client on socket " << fd << std::endl;
+		std::cout << "Response : " << responseStr << std::endl;
+		removeClient(fd);
+
+		exit(0);
+	}
 }
 
 void WebServ::pollinprocess(int fd) {
@@ -212,9 +237,12 @@ void WebServ::startCgi(int client_fd) {
 
     // pick the right script per your 3 services
     std::string scriptPath;
-    if (loc.getPath() == "/sigup")      scriptPath = "./cgi/signup.py";
-    else if (loc.getPath() == "/login") scriptPath = "./cgi/login.py";
-    else                                scriptPath = loc.getRoot() + client.getRequest().getUri().substr(loc.getPath().size());
+    if (loc.getPath() == "/sigup")
+		scriptPath = "./cgi/signup.py";
+    else if (loc.getPath() == "/login") 
+		scriptPath = "./cgi/login.py";
+    else 
+		scriptPath = loc.getRoot() + client.getRequest().getUri().substr(loc.getPath().size());
 
     std::string interpreter = loc.getCgiPath(); // e.g. /usr/bin/python3, empty for compiled .c binaries
 
@@ -225,14 +253,15 @@ void WebServ::startCgi(int client_fd) {
 
     std::vector<std::string> envVec = buildCgiEnv(client, scriptPath);
     std::vector<char*> envp;
-    for (size_t i = 0; i < envVec.size(); ++i) envp.push_back(strdup(envVec[i].c_str()));
+    for (size_t i = 0; i < envVec.size(); ++i) 
+		envp.push_back(strdup(envVec[i].c_str()));
     envp.push_back(NULL);
 
     pid_t pid = fork();
-    if (pid < 0) throw std::runtime_error("fork failed");
-
+    if (pid < 0) 
+		throw std::runtime_error("fork failed");
     if (pid == 0) {
-        // CHILD
+
         dup2(inPipe[0], STDIN_FILENO);
         dup2(outPipe[1], STDOUT_FILENO);
         close(inPipe[0]); close(inPipe[1]);
@@ -249,7 +278,7 @@ void WebServ::startCgi(int client_fd) {
             argv[1] = NULL;
             execve(scriptPath.c_str(), argv, &envp[0]);
         }
-        _exit(1); // execve failed
+        _exit(1);
     }
 
     // PARENT
@@ -282,8 +311,13 @@ void WebServ::cgiProcess(int pipe_fd) {
     // n == 0 (EOF) or n < 0 with no more data: CGI finished
     close(pipe_fd);
     _fdInfos.erase(pipe_fd);
+
     for (std::vector<pollfd>::iterator it = _pollfds.begin(); it != _pollfds.end(); ++it) {
-        if (it->fd == pipe_fd) { _pollfds.erase(it); break; }
+        if (it->fd == pipe_fd) 
+		{ 
+			_pollfds.erase(it); 
+			break; 
+		}
     }
     int status;
     waitpid(client->getCgiPid(), &status, 0);
@@ -296,7 +330,14 @@ void WebServ::cgiProcess(int pipe_fd) {
 void WebServ::handleRequest(int fd) {
     Client &client = _clients[fd];
     client.matchLocation();
-    client.checkAccess();
+	try {
+    	client.checkAccess();
+	}
+	catch (const redirectException &e) {
+		client.redirect(302, e.getRedirectUrl());
+		changePollToWrite(fd);
+		return;
+	}
     if (!client.isMethodeAllowed())
         throw HttpException(405, "Method Not Allowed");
 
@@ -342,8 +383,16 @@ void WebServ::finalizeCgiResponse(Client &client) {
     size_t headerEnd = out.find("\r\n\r\n");
     if (headerEnd == std::string::npos) headerEnd = out.find("\n\n");
 
-    std::string headerPart = (headerEnd != std::string::npos) ? out.substr(0, headerEnd) : "";
-    std::string body = (headerEnd != std::string::npos) ? out.substr(headerEnd + (out[headerEnd+2]=='\r'?4:2)) : out;
+    std::string headerPart ;
+	if (headerEnd != std::string::npos) 
+		headerPart = out.substr(0, headerEnd);
+	else 
+		headerPart = "";
+    std::string body ;
+	if (headerEnd != std::string::npos) 
+		body = out.substr(headerEnd + (out[headerEnd+2]=='\r'?4:2));
+	else 
+		body = out;
 
     int statusCode = 200;
     std::string statusMsg = "OK";

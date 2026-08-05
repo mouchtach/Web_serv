@@ -171,9 +171,13 @@ void Client::processStatic() {
 
     std::string root = _matchedLocation.getRoot();
     std::string locPath = _matchedLocation.getPath();
-    std::string suffix = _matchedLocation.isRootOverridden()
-        ? uri.substr(locPath.size())
-        : uri;
+    std::string suffix ;
+	if (uri.compare(0, locPath.length(), locPath) == 0) {
+		suffix = uri.substr(locPath.length());
+	} else {
+		suffix = uri;
+	}
+	
     std::string target = appendPath(root, suffix);
 
     if (_request.getMethod() == "GET")

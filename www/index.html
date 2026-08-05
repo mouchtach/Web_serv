@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>webserv — by ymouchta</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="wrap">
+
+  <div class="topbar">
+    <span>webserv/1.0</span>
+    <span class="status-pill"><span class="dot"></span>server listening</span>
+  </div>
+
+  <!-- ============ HEADER ============ -->
+  <div class="hero">
+    <div class="hero-icon">ws</div>
+    <div>
+      <div class="hero-title">
+        webserv
+        <span class="by">by <a href="https://github.com/mouchtach" target="_blank">ymouchta</a></span>
+      </div>
+      <div class="hero-sub">
+        A non-blocking HTTP/1.0 server written in C++98, built for the 42 curriculum.
+        Single-threaded, driven entirely by <code>poll()</code> — no request ever blocks another.
+      </div>
+      <div class="hero-badges">
+        <span class="badge">C++98</span>
+        <span class="badge">poll()</span>
+        <span class="badge">HTTP/1.0</span>
+        <span class="badge">CGI</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ METHOD SUMMARY ============ -->
+  <div class="method-strip">
+    <div class="method-cell">
+      <span class="m get">GET</span>
+      <p>Serves static files, resolves directory indexes, and renders autoindex listings when enabled.</p>
+    </div>
+    <div class="method-cell">
+      <span class="m post">POST</span>
+      <p>Accepts multipart uploads, streams the body against <code>Content-Length</code>, and enforces <code>client_max_body_size</code>.</p>
+    </div>
+    <div class="method-cell">
+      <span class="m delete">DELETE</span>
+      <p>Removes a resource from disk when the target location permits it.</p>
+    </div>
+  </div>
+
+  <!-- ============ FILE MANAGER ============ -->
+  <div class="section">
+    <div class="section-head">
+      <h2>File manager</h2>
+      <span class="hint">/upload — POST to add, DELETE to remove, GET for the autoindex listing</span>
+    </div>
+
+    <div class="status-msg" id="status-msg" hidden>
+      <span class="code" id="status-code"></span>
+      <span id="status-text"></span>
+    </div>
+
+    <div class="grid-2">
+      <div class="panel">
+        <div class="panel-header"><span class="dot live"></span>POST /upload</div>
+        <div class="panel-body">
+          <label class="dropzone" id="dropzone" for="file-input">
+            <span class="icon">↑</span>
+            drop a file here, or click to browse
+            <input type="file" id="file-input">
+            <div class="fname" id="fname"></div>
+          </label>
+          <button class="btn primary full" id="upload-btn" disabled>Upload file</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <span class="dot live"></span>GET /upload/
+          <span style="margin-left:auto;">
+            <button class="mini-btn" id="refresh-btn">refresh</button>
+          </span>
+        </div>
+        <div class="panel-body" id="file-list">
+          <div class="empty-hint">loading…</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ CGI RUNNER ============ -->
+  <div class="section">
+    <div class="section-head">
+      <h2>CGI</h2>
+      <span class="hint">fork + execve, output piped back through the response</span>
+    </div>
+    <div class="panel">
+      <div class="panel-header"><span class="dot"></span>GET /cgi/info.py</div>
+      <div class="panel-body">
+        <p style="color:var(--text-muted); font-size:13px; margin-bottom:10px;">
+          Executes <code style="font-family:var(--font-mono); color:var(--text);">cgi/info.py</code>
+          through the CGI handler and prints the environment the script received.
+        </p>
+        <button class="btn" id="cgi-btn">Run script</button>
+        <div class="cgi-output" id="cgi-output"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ REQUEST HISTORY ============ -->
+  <div class="section">
+    <div class="section-head">
+      <h2>Request history</h2>
+      <span class="hint">every action above, logged as it happens</span>
+    </div>
+    <div class="panel">
+      <div class="panel-header"><span class="dot live"></span>local session log</div>
+      <div class="panel-body" id="live-log">
+        <div class="log-empty">waiting for activity…</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <span>webserv — single-threaded, poll()-driven, C++98</span>
+    <span><a href="/errors/">error pages</a></span>
+  </div>
+
+</div>
+
+<script>
+/* ---------------------------------------------------------------------
+   request history log
+   --------------------------------------------------------------------*/
+const logPanel = document.getElementById('live-log');
+let logCount = 0;
+
+function statusClass(status) {
+  if (status === 0) return 'err';
+  if (status >= 200 && status < 300) return 'ok';
+  if (status >= 300 && status < 400) return 'redir';
+  return 'warn';
+}
+
+function logRequest(method, path, status, note) {
+  if (logCount === 0) logPanel.innerHTML = '';
+  logCount++;
+  const time = new Date().toLocaleTimeString('en-GB', { hour12: false });
+  const row = document.createElement('div');
+  row.className = 'log-line';
+  row.innerHTML =
+    '<span class="lg-time">' + time + '</span>' +
+    '<span class="lg-method ' + method.toLowerCase() + '">' + method + '</span>' +
+    '<span class="lg-path">' + path + '</span>' +
+    '<span class="lg-status ' + statusClass(status) + '">' + (status || 'ERR') + '</span>' +
+    '<span class="lg-note">' + (note || '') + '</span>';
+  logPanel.prepend(row);
+  while (logPanel.children.length > 14) logPanel.removeChild(logPanel.lastChild);
+}
+
+/* ---------------------------------------------------------------------
+   status banner — turns a response into a plain-language result
+   --------------------------------------------------------------------*/
+const statusMsg  = document.getElementById('status-msg');
+const statusCode = document.getElementById('status-code');
+const statusText = document.getElementById('status-text');
+
+// action: 'upload' | 'delete' | 'list' — tailors the wording per action
+function describeStatus(status, action) {
+  const subject = { upload: 'upload', delete: 'file', list: 'listing' }[action] || 'request';
+  switch (true) {
+    case status >= 200 && status < 300:
+      return { cls: 'ok', text: {
+        upload: 'File uploaded successfully.',
+        delete: 'File deleted successfully.',
+        list:   'Listing loaded successfully.'
+      }[action] || 'Success.' };
+    case status === 403:
+      return { cls: 'forbidden', text: `Forbidden — no permission to ${action === 'delete' ? 'delete' : action === 'upload' ? 'write to' : 'read'} this ${subject}.` };
+    case status === 404:
+      return { cls: 'notfound', text: `Not found — the ${subject === 'file' ? 'file' : 'target'} does not exist.` };
+    case status === 405:
+      return { cls: 'warn', text: `Method not allowed for this ${subject}.` };
+    case status === 413:
+      return { cls: 'warn', text: 'Payload too large — file exceeds the server\'s size limit.' };
+    case status === 500:
+      return { cls: 'err', text: 'Server error while processing the request.' };
+    case status === 0:
+      return { cls: 'err', text: 'Network error — could not reach the server.' };
+    default:
+      return { cls: 'warn', text: `Unexpected response for this ${subject}.` };
+  }
+}
+
+function showStatus(status, action) {
+  const { cls, text } = describeStatus(status, action);
+  statusMsg.className = 'status-msg ' + cls;
+  statusMsg.hidden = false;
+  statusCode.textContent = status || 'ERR';
+  statusText.textContent = text;
+}
+
+/* ---------------------------------------------------------------------
+   file manager
+   --------------------------------------------------------------------*/
+const dropzone   = document.getElementById('dropzone');
+const fileInput  = document.getElementById('file-input');
+const fnameEl    = document.getElementById('fname');
+const uploadBtn  = document.getElementById('upload-btn');
+const fileListEl = document.getElementById('file-list');
+const refreshBtn = document.getElementById('refresh-btn');
+
+fileInput.addEventListener('change', () => {
+  if (fileInput.files.length) {
+    fnameEl.textContent = fileInput.files[0].name;
+    uploadBtn.disabled = false;
+  } else {
+    fnameEl.textContent = '';
+    uploadBtn.disabled = true;
+  }
+});
+
+['dragover', 'dragenter'].forEach(evt =>
+  dropzone.addEventListener(evt, e => { e.preventDefault(); dropzone.classList.add('drag'); })
+);
+['dragleave', 'drop'].forEach(evt =>
+  dropzone.addEventListener(evt, e => { e.preventDefault(); dropzone.classList.remove('drag'); })
+);
+dropzone.addEventListener('drop', e => {
+  if (e.dataTransfer.files.length) {
+    fileInput.files = e.dataTransfer.files;
+    fileInput.dispatchEvent(new Event('change'));
+  }
+});
+
+uploadBtn.addEventListener('click', async () => {
+  if (!fileInput.files.length) return;
+  const file = fileInput.files[0];
+  const fd = new FormData();
+  fd.append('file', file, file.name);
+  uploadBtn.disabled = true;
+  uploadBtn.textContent = 'Uploading…';
+  try {
+    const res = await fetch('/upload', { method: 'POST', body: fd });
+    showStatus(res.status, 'upload');
+    logRequest('POST', '/upload', res.status, res.ok ? 'saved ' + file.name : 'upload rejected');
+  } catch (err) {
+    showStatus(0, 'upload');
+    logRequest('POST', '/upload', 0, err.message);
+  }
+  uploadBtn.textContent = 'Upload file';
+  fileInput.value = '';
+  fnameEl.textContent = '';
+  refreshFiles();
+});
+
+async function refreshFiles() {
+  fileListEl.innerHTML = '<div class="empty-hint">loading…</div>';
+  try {
+    const res = await fetch('/upload/');
+    const html = await res.text();
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const anchors = Array.from(doc.querySelectorAll('a'));
+    const files = anchors
+      .map(a => a.getAttribute('href'))
+      .filter(href => href && href !== '../' && !href.endsWith('/'))
+      .map(href => decodeURIComponent(href));
+
+    showStatus(res.status, 'list');
+    logRequest('GET', '/upload/', res.status, files.length + ' file(s)');
+    renderFiles(files);
+  } catch (err) {
+    fileListEl.innerHTML = '<div class="empty-hint">could not reach /upload/</div>';
+    showStatus(0, 'list');
+    logRequest('GET', '/upload/', 0, err.message);
+  }
+}
+
+function renderFiles(files) {
+  if (!files.length) {
+    fileListEl.innerHTML = '<div class="empty-hint">empty — nothing uploaded yet</div>';
+    return;
+  }
+  const table = document.createElement('table');
+  const tbody = document.createElement('tbody');
+  files.forEach(name => {
+    const tr = document.createElement('tr');
+
+    const tdName = document.createElement('td');
+    tdName.className = 'fname-cell';
+    tdName.textContent = name;
+
+    const tdActions = document.createElement('td');
+    tdActions.style.textAlign = 'right';
+
+    const getLink = document.createElement('a');
+    getLink.className = 'mini-btn';
+    getLink.href = '/upload/' + encodeURIComponent(name);
+    getLink.target = '_blank';
+    getLink.textContent = 'get';
+
+    const delBtn = document.createElement('button');
+    delBtn.className = 'mini-btn danger';
+    delBtn.textContent = 'delete';
+    delBtn.addEventListener('click', () => deleteFile(name));
+
+    tdActions.appendChild(getLink);
+    tdActions.appendChild(delBtn);
+    tr.appendChild(tdName);
+    tr.appendChild(tdActions);
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+  fileListEl.innerHTML = '';
+  fileListEl.appendChild(table);
+}
+
+async function deleteFile(name) {
+  const path = '/upload/' + encodeURIComponent(name);
+  try {
+    const res = await fetch(path, { method: 'DELETE' });
+    showStatus(res.status, 'delete');
+    logRequest('DELETE', path, res.status, res.ok ? 'removed' : 'delete failed');
+  } catch (err) {
+    showStatus(0, 'delete');
+    logRequest('DELETE', path, 0, err.message);
+  }
+  refreshFiles();
+}
+
+refreshBtn.addEventListener('click', refreshFiles);
+
+/* ---------------------------------------------------------------------
+   cgi runner
+   --------------------------------------------------------------------*/
+const cgiBtn = document.getElementById('cgi-btn');
+const cgiOut = document.getElementById('cgi-output');
+
+cgiBtn.addEventListener('click', async () => {
+  cgiBtn.disabled = true;
+  cgiOut.textContent = 'running…';
+  try {
+    const res = await fetch('/cgi/info.py');
+    const text = await res.text();
+    cgiOut.textContent = text || '(empty output)';
+    logRequest('GET', '/cgi/info.py', res.status, res.ok ? 'script executed' : 'cgi failed');
+  } catch (err) {
+    cgiOut.textContent = 'could not reach /cgi/info.py\n' + err.message;
+    logRequest('GET', '/cgi/info.py', 0, err.message);
+  }
+  cgiBtn.disabled = false;
+});
+
+/* initial load */
+refreshFiles();
+</script>
+</body>
+</html>

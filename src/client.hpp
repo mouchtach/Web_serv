@@ -87,11 +87,17 @@ public:
     void checkAccess() {
         
         const std::string &locationPath = _matchedLocation.getPath();
-        if (_matchedLocation.getPath() == "/sigup" && validateToken(_request.getToken())) {
+        std::cout << "Checking access for location: " << locationPath << std::endl;
+        if ((_matchedLocation.getPath() == "/sigup" || _matchedLocation.getPath() == "/login") && validateToken(_request.getToken())) {
+            std::cout << "should redirect to /home" << std::endl;
             throw redirectException("/home");
         } else if (_matchedLocation.getPath() == "/login" && !validateToken(_request.getToken())) {
+            std::cout << "should redirect to /login" << std::endl;
             throw redirectException("/login");
+            // std::cout << "Access granted to /login" << std::endl;
         } else if (_matchedLocation.getPath() == "/sigup" && !validateToken(_request.getToken())) {
+            // std::cout << "should redirect to /sigup" << std::endl;
+            // throw redirectException("/sigup");
             std::cout << "Access granted to /sigup" << std::endl;
         } else if(!validateToken(_request.getToken())) {
             throw redirectException("/login");
@@ -100,17 +106,15 @@ public:
         }
     }
 
-
-    // bool hascontentlength() const {
-    //     return _config.getClientMaxBodySize() > 0;
-    // }
 public:
     void processStatic();
+    void redirect(int code, const std::string &newLocation);
+
 private:
     void handleStaticGET(const std::string &target, const std::string &uri);
     void handleStaticPOST(const std::string &target);
     void handleStaticDELETE(const std::string &target);
     void sendFile(const std::string &filepath);
     void processAutoIndex(const std::string &uri, const std::string &target);
-    void redirect(int code, const std::string &newLocation);
+    // void redirect(int code, const std::string &newLocation);
 };
