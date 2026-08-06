@@ -204,99 +204,10 @@ std::vector<std::string> WebServ::buildCgiEnv(Client &client, const std::string 
 }
 
 void WebServ::startCgi(int client_fd) {
-    Client &client = _clients[client_fd];
-    Location loc = client.getMatchedLocation();
 
-    // pick the right script per your 3 services
-    std::string scriptPath;
-    if (loc.getPath() == "/signup")
-		scriptPath = "./cgi/signup.py";
-    else if (loc.getPath() == "/login") 
-		scriptPath = "./cgi/login.py";
-    else 
-		scriptPath = loc.getRoot() + client.getRequest().getUri().substr(loc.getPath().size());
-	std::cout << "Starting CGI process for script: " << scriptPath << std::endl;
-    std::string interpreter = loc.getCgiPath(); // e.g. /usr/bin/python3, empty for compiled .c binaries
-
-    int inPipe[2];  // parent -> child stdin  (request body)
-    int outPipe[2]; // child stdout -> parent
-    if (pipe(inPipe) < 0 || pipe(outPipe) < 0)
-        throw std::runtime_error("pipe failed");
-
-    std::vector<std::string> envVec = buildCgiEnv(client, scriptPath);
-    std::vector<char*> envp;
-    for (size_t i = 0; i < envVec.size(); ++i) 
-		envp.push_back(strdup(envVec[i].c_str()));
-    envp.push_back(NULL);
-
-    pid_t pid = fork();
-    if (pid < 0) 
-		throw std::runtime_error("fork failed");
-    if (pid == 0) {
-
-        dup2(inPipe[0], STDIN_FILENO);
-        dup2(outPipe[1], STDOUT_FILENO);
-        close(inPipe[0]); close(inPipe[1]);
-        close(outPipe[0]); close(outPipe[1]);
-
-        char *argv[3];
-        if (!interpreter.empty()) {
-            argv[0] = strdup(interpreter.c_str());
-            argv[1] = strdup(scriptPath.c_str());
-            argv[2] = NULL;
-            execve(interpreter.c_str(), argv, &envp[0]);
-        } else {
-            argv[0] = strdup(scriptPath.c_str());
-            argv[1] = NULL;
-            execve(scriptPath.c_str(), argv, &envp[0]);
-        }
-        _exit(1);
-    }
-
-    // PARENT
-    close(inPipe[0]);
-    close(outPipe[1]);
-
-    const std::string &body = client.getRequest().getBody();
-    if (!body.empty())
-        write(inPipe[1], body.c_str(), body.size());
-    close(inPipe[1]); // EOF so child's stdin read() returns
-
-    fcntl(outPipe[0], F_SETFL, O_NONBLOCK);
-    client.setCgiPid(pid);
-    client.setCgiOutFd(outPipe[0]);
-
-    addpollfd(outPipe[0], POLLIN);
-    addinfo(outPipe[0], CGI, &client);
 }
 
-void WebServ::cgiProcess(int pipe_fd) {
-    Client *client = static_cast<Client*>(_fdInfos[pipe_fd].obj);
-    char buffer[4096];
-    ssize_t n = read(pipe_fd, buffer, sizeof(buffer));
 
-    if (n > 0) {
-        client->appendCgiOutput(buffer, n);
-        return; // wait for more, or EOF
-    }
-
-    // n == 0 (EOF) or n < 0 with no more data: CGI finished
-    close(pipe_fd);
-    _fdInfos.erase(pipe_fd);
-
-    for (std::vector<pollfd>::iterator it = _pollfds.begin(); it != _pollfds.end(); ++it) {
-        if (it->fd == pipe_fd) 
-		{ 
-			_pollfds.erase(it); 
-			break; 
-		}
-    }
-    int status;
-    waitpid(client->getCgiPid(), &status, 0);
-
-    finalizeCgiResponse(*client);
-    changePollToWrite(client->getFd());
-}
 
 
 void WebServ::handleRequest(int fd) {
