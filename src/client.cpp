@@ -26,7 +26,7 @@ Client::Client(const Client &other) : _config(other._config), _request(other._re
 Client::Client(const Config &config, const std::vector<std::string> &tokens, int fd) : _config(config), _tokens(tokens), _fd(fd) {
 	// set the maximum body size for the request based on the configuration
 	_request.set_max_body_size(_config.getClientMaxBodySize());
-	std::cout << "Client created with max body size: " << _config.getClientMaxBodySize() << std::endl;
+	// std::cout << "Client created with max body size: " << _config.getClientMaxBodySize() << std::endl;
 }
 
 Client &Client::operator=(const Client &other) {
@@ -65,6 +65,8 @@ bool Client::validateToken(std::string token) {
 }
 
 void Client::sendFile(const std::string &filepath) {
+    // print message on green color
+    std::cout << "\033[32mSending file: " << filepath << "\033[0m" << std::endl;
     std::string content = readFile(filepath);
     if (content.empty()) {
         _response.sendError(404, "Not Found");
@@ -78,6 +80,9 @@ void Client::sendFile(const std::string &filepath) {
 }
 
 void Client::redirect(int code, const std::string &newLocation) {
+    // print megsage on pink color
+
+    std::cout << "\033[35mRedirecting to: " << newLocation << "\033[0m" << std::endl;
     _response.setVersion(_request.getVersion());
     _response.setStatusCode(code, "Moved Permanently");
     _response.setHeader("Location", newLocation);
@@ -86,6 +91,8 @@ void Client::redirect(int code, const std::string &newLocation) {
 }
 
 void Client::processAutoIndex(const std::string &uri, const std::string &target) {
+    // print message on blue color
+    std::cout << "\033[34mGenerating autoindex for: " << target << "\033[0m" << std::endl;
     std::string html = buildAutoIndex(target, uri);
     if (html.empty()) {
         _response.sendError(403, "Forbidden");
@@ -99,6 +106,8 @@ void Client::processAutoIndex(const std::string &uri, const std::string &target)
 }
 
 void Client::handleStaticGET(const std::string &target, const std::string &uri) {
+    // print message on green color
+    std::cout << "\033[32mHandling GET request for: " << target << "\033[0m" << std::endl;
     struct stat st;
     if (stat(target.c_str(), &st) == -1) {
         _response.sendError(404, "Not Found");
@@ -129,14 +138,55 @@ void Client::handleStaticGET(const std::string &target, const std::string &uri) 
     _response.sendError(403, "Forbidden");
 }
 
+
+std::string takenamefile(const std::string &body) {
+    // Find the filename in the body
+    std::string filename;
+    size_t pos = body.find("filename=\"");
+    if (pos != std::string::npos) {
+        pos += 10; // Move past 'filename="'
+        size_t endPos = body.find("\"", pos);
+        if (endPos != std::string::npos) {
+            filename = body.substr(pos, endPos - pos);
+        }
+    }
+    return filename;
+}
+
+std::string getBoundary(const std::string &contentType)
+{
+    size_t pos = contentType.find("boundary=");
+    if (pos == std::string::npos)
+        return "";
+
+    return contentType.substr(pos + 9);
+}
+
+std::string takeBodyContent(const std::string &body, const std::string &boundary)
+{
+    size_t start = body.find("\r\n\r\n");
+    if (start == std::string::npos)
+        return "";
+
+    start += 4;
+
+    std::string delimiter = "\r\n--" + boundary;
+    size_t end = body.find(delimiter, start);
+    if (end == std::string::npos)
+        return "";
+    return body.substr(start, end - start);
+}
+
 void Client::handleStaticPOST(const std::string &target) {
-    // simple "write raw body to file at target" upload — adjust to your multipart parsing if needed
-    std::ofstream out(target.c_str(), std::ios::binary);
+    
+    std::string filename = takenamefile(_request.getBody());
+    std::cout << "\033[33mReceived POST request for file: " << filename << "\033[0m" << std::endl;
+    std::ofstream out((target+ "/" + filename).c_str(), std::ios::binary);
     if (!out) {
         _response.sendError(500, "Internal Server Error");
         return;
     }
-    out << _request.getBody();
+    out << takeBodyContent(_request.getBody(), getBoundary(_request.getContentType()));
     out.close();
     _response.setVersion(_request.getVersion());
     _response.setStatusCode(200, "OK");
@@ -145,6 +195,8 @@ void Client::handleStaticPOST(const std::string &target) {
 }
 
 void Client::handleStaticDELETE(const std::string &target) {
+    // print message on red color
+    std::cout << "\033[31mHandling DELETE request for: " << target << "\033[0m" << std::endl;
     struct stat st;
     if (stat(target.c_str(), &st) == -1) {
         _response.sendError(404, "Not Found");

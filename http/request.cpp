@@ -41,7 +41,7 @@ void Request::appendData(const char *data, size_t length) {
 void Request::addheader(std::string &key, std::string &value) {
     // convet to lower case
     toLowerCase(key);
-    toLowerCase(value);
+    // toLowerCase(value);
 
     if (key == "cookie") {
         setToken(value);

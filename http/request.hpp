@@ -33,13 +33,13 @@ public:
     void setContentLength(size_t length);
     void set_request_complete(bool complete) { _request_complete = complete; }
     void setToken(const std::string &token) {
-        std::cout << "Setting token from header: " << token << std::endl;
+        // std::cout << "Setting token from header: " << token << std::endl;
         size_t s = token.find("=");
         if (s != std::string::npos)
             _token = token.substr(s + 1);
         else 
             _token = "";
-        std::cout << "Token set to: " << _token << std::endl;
+        // std::cout << "Token set to: " << _token << std::endl;
     }
 
     std::string getToken() const { return _token; }
@@ -50,6 +50,25 @@ public:
     void parse();
     bool hasBody() const;
     bool isRequestComplete() const { return _request_complete; }
+
+    std::string getContentType() const {
+        std::map<std::string, std::string>::const_iterator it = _headers.find("content-type");
+        if (it != _headers.end()) {
+            return it->second;
+        }
+        return "";
+    }
+
+    void displayRequest() const {
+        std::cout << "Method: " << _method << std::endl;
+        std::cout << "URI: " << _uri << std::endl;
+        std::cout << "Version: " << _version << std::endl;
+        std::cout << "Headers:" << std::endl;
+        for (std::map<std::string, std::string>::const_iterator it = _headers.begin(); it != _headers.end(); ++it) {
+            std::cout << it->first << ": " << it->second << std::endl;
+        }
+        std::cout << "Body: " << _body << std::endl;
+    }
 
     // getters
     const std::string &getMethod() const { return _method; }

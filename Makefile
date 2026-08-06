@@ -18,6 +18,7 @@ SRC = main.cpp \
 OBJ = $(SRC:.cpp=.o)
 
 all: $(NAME)
+	@mkdir -p uploads
 
 $(NAME): $(OBJ)
 	$(CXX) $(CXXFLAGS) $(OBJ) -o $(NAME)
@@ -30,5 +31,6 @@ clean:
 
 fclean: clean
 	rm -f $(NAME)
+	rm -rf uploads
 
 re: fclean all

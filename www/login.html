@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Log in — webserv</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="auth-page">
+  <div class="auth-card">
+
+    <div class="auth-brand">
+      <div class="hero-icon">ws</div>
+      <span class="name">webserv</span>
+    </div>
+
+    <div class="status-msg" id="status-msg" hidden>
+      <span class="code" id="status-code"></span>
+      <span id="status-text"></span>
+    </div>
+
+    <div class="panel auth-panel">
+      <div class="panel-header"><span class="dot live"></span>POST /login</div>
+      <div class="panel-body">
+        <div class="auth-heading">Log in</div>
+        <div class="auth-subheading">Enter your credentials to access your account.</div>
+
+        <form id="login-form">
+          <div class="field">
+            <label for="login-username">username</label>
+            <input type="text" id="login-username" name="username" placeholder="ymouchta" autocomplete="username" required>
+          </div>
+          <div class="field">
+            <label for="login-password">password</label>
+            <input type="password" id="login-password" name="password" placeholder="••••••••" autocomplete="current-password" required>
+          </div>
+
+          <div class="field-row">
+            <label class="checkbox-line">
+              <input type="checkbox" id="remember-me" name="remember">
+              remember me
+            </label>
+            <a href="#" style="font-size:12.5px;">forgot password?</a>
+          </div>
+
+          <button class="btn primary full" type="submit" id="login-btn">Log in</button>
+        </form>
+
+        <div class="auth-switch">
+          Don't have an account? <a href="/signup.html">Sign up</a>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+const form      = document.getElementById('login-form');
+const btn       = document.getElementById('login-btn');
+const statusMsg = document.getElementById('status-msg');
+const statusCode = document.getElementById('status-code');
+const statusText = document.getElementById('status-text');
+
+function describeStatus(status) {
+  switch (true) {
+    case status >= 200 && status < 300:
+      return { cls: 'ok', text: 'Logged in successfully.' };
+    case status === 401:
+      return { cls: 'forbidden', text: 'Incorrect username or password.' };
+    case status === 404:
+      return { cls: 'notfound', text: 'Login endpoint not found.' };
+    case status === 405:
+      return { cls: 'warn', text: 'Method not allowed for /login.' };
+    case status === 500:
+      return { cls: 'err', text: 'Server error while processing the request.' };
+    case status === 0:
+      return { cls: 'err', text: 'Network error — could not reach the server.' };
+    default:
+      return { cls: 'warn', text: 'Unexpected response from the server.' };
+  }
+}
+
+function showStatus(status) {
+  const { cls, text } = describeStatus(status);
+  statusMsg.className = 'status-msg ' + cls;
+  statusMsg.hidden = false;
+  statusCode.textContent = status || 'ERR';
+  statusText.textContent = text;
+}
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  btn.disabled = true;
+  btn.textContent = 'Logging in…';
+
+  const fd = new FormData(form);
+
+  try {
+    const res = await fetch('/login', { method: 'POST', body: fd });
+    showStatus(res.status);
+    if (res.ok) {
+      // adjust redirect target to match your project's routes
+      window.location.href = '/';
+    }
+  } catch (err) {
+    showStatus(0);
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Log in';
+});
+</script>
+</body>
+</html>

@@ -53,16 +53,46 @@ public:
 
     bool validateToken(std::string token);
 
-    void matchLocation() {
+    void matchLocation()
+    {
         const std::vector<Location> &locations = _config.getLocations();
         const std::string &requestUri = _request.getUri();
-        for (std::vector<Location>::const_iterator it = locations.begin(); it != locations.end(); ++it) {
-            const Location &location = *it;
-            const std::string &locationPath = location.getPath();
-            if (requestUri.compare(0, locationPath.length(), locationPath) == 0) {
-                _matchedLocation = location;
+        std::cout << "Matching request URI: " << requestUri << std::endl;
+        const Location *bestMatch = NULL;
+        size_t bestLength = 0;
+
+        for (std::vector<Location>::const_iterator it = locations.begin();
+            it != locations.end(); ++it)
+        {
+            const std::string &locationPath = it->getPath();
+
+            // URI must start with the location path
+            if (requestUri.compare(0, locationPath.length(), locationPath) != 0)
+                continue;
+
+            // Make sure it is a complete path component
+            bool valid = false;
+
+            if (requestUri.length() == locationPath.length())
+                valid = true;                         // "/login"
+            else if (locationPath == "/")
+                valid = true;                         // root matches everything
+            else if (requestUri[locationPath.length()] == '/')
+                valid = true;                         // "/login/user"
+
+            if (!valid)
+                continue;
+
+            // Keep the longest matching location
+            if (locationPath.length() > bestLength)
+            {
+                bestMatch = &(*it);
+                bestLength = locationPath.length();
             }
         }
+
+        if (bestMatch)
+            _matchedLocation = *bestMatch;
     }
 
     Location getMatchedLocation() {
@@ -87,22 +117,19 @@ public:
     void checkAccess() {
         
         const std::string &locationPath = _matchedLocation.getPath();
-        std::cout << "Checking access for location: " << locationPath << std::endl;
-        if ((_matchedLocation.getPath() == "/sigup" || _matchedLocation.getPath() == "/login") && validateToken(_request.getToken())) {
-            std::cout << "should redirect to /home" << std::endl;
-            throw redirectException("/home");
-        } else if (_matchedLocation.getPath() == "/login" && !validateToken(_request.getToken())) {
-            std::cout << "should redirect to /login" << std::endl;
-            throw redirectException("/login");
-            // std::cout << "Access granted to /login" << std::endl;
-        } else if (_matchedLocation.getPath() == "/sigup" && !validateToken(_request.getToken())) {
-            // std::cout << "should redirect to /sigup" << std::endl;
-            // throw redirectException("/sigup");
-            std::cout << "Access granted to /sigup" << std::endl;
-        } else if(!validateToken(_request.getToken())) {
-            throw redirectException("/login");
-        } else {
-            std::cout << "Access granted to " << locationPath << std::endl;
+        if (_request.getUri() == "/login.html" || _request.getUri() == "/signup.html" || locationPath == "/static") {
+            return; // Allow access to login, signup, and static resources without token
+        }
+        // std::cout << "Checking access for location: " << locationPath << std::endl;
+        if ((_matchedLocation.getPath() == "/signup" || _matchedLocation.getPath() == "/login" ) && validateToken(_request.getToken())) {
+            // std::cout << "should redirect to /index.html" << std::endl;
+            throw redirectException("/index.html");
+        }
+        // any path without token should redirect to /login
+        else if (_matchedLocation.getPath() != "/signup" && _matchedLocation.getPath() != "/login" && !validateToken(_request.getToken())) {
+            // std::cout << "should redirect to /login.html" << std::endl;
+            // sendfile("./cgi/login.html");
+            throw redirectException("/login.html");
         }
     }
 

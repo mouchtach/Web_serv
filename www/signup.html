@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sign up — webserv</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="auth-page">
+  <div class="auth-card">
+
+    <div class="auth-brand">
+      <div class="hero-icon">ws</div>
+      <span class="name">webserv</span>
+    </div>
+
+    <div class="status-msg" id="status-msg" hidden>
+      <span class="code" id="status-code"></span>
+      <span id="status-text"></span>
+    </div>
+
+    <div class="panel auth-panel">
+      <div class="panel-header"><span class="dot live"></span>POST /signup</div>
+      <div class="panel-body">
+        <div class="auth-heading">Create an account</div>
+        <div class="auth-subheading">Sign up to start using the file manager and CGI runner.</div>
+
+        <form id="signup-form">
+          <div class="field">
+            <label for="signup-username">username</label>
+            <input type="text" id="signup-username" name="username" placeholder="ymouchta" autocomplete="username" required>
+          </div>
+          <div class="field">
+            <label for="signup-email">email</label>
+            <input type="email" id="signup-email" name="email" placeholder="you@example.com" autocomplete="email" required>
+          </div>
+          <div class="field">
+            <label for="signup-password">password</label>
+            <input type="password" id="signup-password" name="password" placeholder="••••••••" autocomplete="new-password" required minlength="8">
+            <div class="field-hint">at least 8 characters</div>
+          </div>
+          <div class="field">
+            <label for="signup-confirm">confirm password</label>
+            <input type="password" id="signup-confirm" name="confirm" placeholder="••••••••" autocomplete="new-password" required minlength="8">
+          </div>
+
+          <button class="btn primary full" type="submit" id="signup-btn">Create account</button>
+        </form>
+
+        <div class="auth-switch">
+          Already have an account? <a href="/login.html">Log in</a>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+const form      = document.getElementById('signup-form');
+const btn       = document.getElementById('signup-btn');
+const statusMsg = document.getElementById('status-msg');
+const statusCode = document.getElementById('status-code');
+const statusText = document.getElementById('status-text');
+const pw        = document.getElementById('signup-password');
+const confirm   = document.getElementById('signup-confirm');
+
+function describeStatus(status) {
+  switch (true) {
+    case status >= 200 && status < 300:
+      return { cls: 'ok', text: 'Account created successfully.' };
+    case status === 409:
+      return { cls: 'forbidden', text: 'That username or email is already taken.' };
+    case status === 400:
+      return { cls: 'warn', text: 'Invalid signup data — check the fields and try again.' };
+    case status === 404:
+      return { cls: 'notfound', text: 'Signup endpoint not found.' };
+    case status === 405:
+      return { cls: 'warn', text: 'Method not allowed for /signup.' };
+    case status === 500:
+      return { cls: 'err', text: 'Server error while processing the request.' };
+    case status === 0:
+      return { cls: 'err', text: 'Network error — could not reach the server.' };
+    default:
+      return { cls: 'warn', text: 'Unexpected response from the server.' };
+  }
+}
+
+function showStatus(status, textOverride) {
+  const { cls, text } = describeStatus(status);
+  statusMsg.className = 'status-msg ' + cls;
+  statusMsg.hidden = false;
+  statusCode.textContent = status || 'ERR';
+  statusText.textContent = textOverride || text;
+}
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+
+  if (pw.value !== confirm.value) {
+    showStatus(400, 'Passwords do not match.');
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Creating account…';
+
+  // Sent as application/x-www-form-urlencoded instead of multipart/form-data.
+  // Same fields, same values — just a flat "key=value&key=value" body,
+  // which is trivial to parse on the C++98 side (no boundary parsing needed).
+  const params = new URLSearchParams(new FormData(form));
+
+  try {
+    const res = await fetch('/signup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: params.toString()
+    });
+    showStatus(res.status);
+    if (res.ok) {
+      window.location.href = '/login.html';
+    }
+  } catch (err) {
+    showStatus(0);
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Create account';
+});
+</script>
+</body>
+</html>

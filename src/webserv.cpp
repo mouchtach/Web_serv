@@ -68,7 +68,7 @@ void WebServ::newConnection(int server_fd) {
 		addpollfd(client_fd, POLLIN); // Add the client socket to the pollfd vector
 		addinfo(client_fd, FD_CLIENT, &_clients[client_fd]);  // Store the client socket info
 		// set_max_body_size(_servers[server_fd].getConfig().getClientMaxBodySize());
-		std::cout << "New connection accepted on socket " << client_fd << std::endl;
+		// std::cout << "New connection accepted on socket " << client_fd << std::endl;
 	} catch (const std::exception &e) {
 		std::cerr << "Error in newConnection: " << e.what() << std::endl;
 	}
@@ -116,12 +116,12 @@ void WebServ::polloutprocess(int fd) {
 	Response &response = client.getResponse();
 	const std::string &responseStr = response.getRawResponse();
 	size_t sentBytes = response.getSentBytes();
-	std::cout << "bytes sent so far: " << sentBytes << std::endl;
+	// std::cout << "bytes sent so far: " << sentBytes << std::endl;
 	if (sentBytes >= responseStr.size()) {
-		std::cout << "Full response sent to client on socket " << fd << std::endl;
-		std::cout << "Response : " << responseStr << std::endl;
+		// std::cout << "Full response sent to client on socket " << fd << std::endl;
+		// std::cout << "Response : " << responseStr << std::endl;
 		removeClient(fd);
-		exit(0);
+		// exit(0);
 		return;
 	}
 	ssize_t bytesSent = send(fd, responseStr.c_str() + sentBytes, responseStr.size() - sentBytes, 0);
@@ -134,11 +134,11 @@ void WebServ::polloutprocess(int fd) {
 	if (!response.isFullySent()) {
 		std::cout << "Partial response sent to client on socket " << fd << std::endl;
 	} else {
-		std::cout << "Full response sent to client on socket " << fd << std::endl;
-		std::cout << "Response : " << responseStr << std::endl;
+		// std::cout << "Full response sent to client on socket " << fd << std::endl;
+		// std::cout << "Response : " << responseStr << std::endl;
 		removeClient(fd);
 
-		exit(0);
+		// exit(0);
 	}
 }
 
@@ -178,43 +178,15 @@ void WebServ::readFromClient(int fd)
     request.parse();
     if (!request.isRequestComplete())
         return;
-
-    // Process request
+	// print the request for debugging
+	request.displayRequest();
+	// std::cout << "Request received from client on socket " << fd << ":\n" << request.getBuffer() << std::endl;
     handleRequest(fd);
 
-    // Ready to send
-    changePollToWrite(fd);
+	changePollToWrite(fd);
 }
 
-void WebServ::set_CgiRequirements(Client &client) {
-	int fds[2];
-	if (pipe(fds) == -1) {
-		throw std::runtime_error("Failed to create pipe for CGI");
-	}
-	addpollfd(fds[0], POLLIN);
-	addinfo(fds[0], CGI, &client);
-	addpollfd(fds[1], POLLOUT);
-	addinfo(fds[1], CGI, &client);
-	// set passwd and username on  env for cgi	
 
-	
-
-}
-
-void WebServ::child_process_cgi() {
-	pid_t pid = fork();
-	if (pid < 0) {
-		throw std::runtime_error("Failed to fork for CGI process");
-	}
-	if (pid == 0) {
-		
-	} else {
-		// Parent process
-		// Optionally wait for the child process or handle it asynchronously
-	}
-}
-
-// webserv.cpp
 std::vector<std::string> WebServ::buildCgiEnv(Client &client, const std::string &scriptPath) {
     std::vector<std::string> env;
     Request &req = client.getRequest();
@@ -237,13 +209,13 @@ void WebServ::startCgi(int client_fd) {
 
     // pick the right script per your 3 services
     std::string scriptPath;
-    if (loc.getPath() == "/sigup")
+    if (loc.getPath() == "/signup")
 		scriptPath = "./cgi/signup.py";
     else if (loc.getPath() == "/login") 
 		scriptPath = "./cgi/login.py";
     else 
 		scriptPath = loc.getRoot() + client.getRequest().getUri().substr(loc.getPath().size());
-
+	std::cout << "Starting CGI process for script: " << scriptPath << std::endl;
     std::string interpreter = loc.getCgiPath(); // e.g. /usr/bin/python3, empty for compiled .c binaries
 
     int inPipe[2];  // parent -> child stdin  (request body)
@@ -330,6 +302,7 @@ void WebServ::cgiProcess(int pipe_fd) {
 void WebServ::handleRequest(int fd) {
     Client &client = _clients[fd];
     client.matchLocation();
+
 	try {
     	client.checkAccess();
 	}
@@ -342,7 +315,9 @@ void WebServ::handleRequest(int fd) {
         throw HttpException(405, "Method Not Allowed");
 
     std::string path = client.getMatchedLocation().getPath();
-    if (path == "/sigup" || path == "/login" || path == "/cgi") {
+    if (path == "/signup" || path == "/login" || path == "/cgi") {
+		// print message on red color
+		std::cout << "\033[31mStarting CGI process for path: " << path << "\033[0m" << std::endl;
         startCgi(fd);   // NOT cgiProcess — that's for the poll loop
         return;         // don't changePollToWrite yet; wait for CGI to finish
     }
