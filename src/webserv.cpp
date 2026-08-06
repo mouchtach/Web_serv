@@ -150,7 +150,7 @@ void WebServ::pollinprocess(int fd) {
 	} else if (type == FD_CLIENT) {
 		readFromClient(fd);
 	} else if (type == CGI) {
-		cgiProcess(fd);
+		// cgiProcess(fd);y
 	} else {
 		std::cerr << "Unknown FD type for socket " << fd << std::endl;
 	}
@@ -180,31 +180,15 @@ void WebServ::readFromClient(int fd)
         return;
 	// print the request for debugging
 	request.displayRequest();
-	// std::cout << "Request received from client on socket " << fd << ":\n" << request.getBuffer() << std::endl;
-    handleRequest(fd);
 
+    handleRequest(fd);
 	changePollToWrite(fd);
 }
 
 
-std::vector<std::string> WebServ::buildCgiEnv(Client &client, const std::string &scriptPath) {
-    std::vector<std::string> env;
-    Request &req = client.getRequest();
-    env.push_back("REQUEST_METHOD=" + req.getMethod());
-    env.push_back("SCRIPT_NAME=" + scriptPath);
-    env.push_back("SERVER_PROTOCOL=" + req.getVersion());
-    std::ostringstream cl;
-    cl << req.getBody().size();
-    env.push_back("CONTENT_LENGTH=" + cl.str());
-
-    std::map<std::string,std::string>::const_iterator it = req.getHeaders().find("content-type");
-    if (it != req.getHeaders().end())
-        env.push_back("CONTENT_TYPE=" + it->second);
-    return env;
-}
 
 void WebServ::startCgi(int client_fd) {
-
+	(void)client_fd; // to avoid unused parameter warning
 }
 
 
@@ -229,12 +213,12 @@ void WebServ::handleRequest(int fd) {
     if (path == "/signup" || path == "/login" || path == "/cgi") {
 		// print message on red color
 		std::cout << "\033[31mStarting CGI process for path: " << path << "\033[0m" << std::endl;
-        startCgi(fd);   // NOT cgiProcess — that's for the poll loop
+        // startCgi(fd);   // NOT cgiProcess — that's for the poll loop
         return;         // don't changePollToWrite yet; wait for CGI to finish
     }
 	
     client.processStatic();
-    changePollToWrite(fd);
+    // changePollToWrite(fd);
 
 }
 
@@ -264,60 +248,7 @@ void WebServ::start() {
 	}
 }
 
-void WebServ::finalizeCgiResponse(Client &client) {
-    const std::string &out = client.getCgiOutput();
-    size_t headerEnd = out.find("\r\n\r\n");
-    if (headerEnd == std::string::npos) headerEnd = out.find("\n\n");
 
-    std::string headerPart ;
-	if (headerEnd != std::string::npos) 
-		headerPart = out.substr(0, headerEnd);
-	else 
-		headerPart = "";
-    std::string body ;
-	if (headerEnd != std::string::npos) 
-		body = out.substr(headerEnd + (out[headerEnd+2]=='\r'?4:2));
-	else 
-		body = out;
-
-    int statusCode = 200;
-    std::string statusMsg = "OK";
-    std::string contentType = "text/html";
-    std::string authToken;
-
-    std::istringstream hs(headerPart);
-    std::string line;
-    while (std::getline(hs, line)) {
-        if (!line.empty() && line[line.size()-1] == '\r') line.erase(line.size()-1);
-        size_t colon = line.find(':');
-        if (colon == std::string::npos) continue;
-        std::string key = line.substr(0, colon);
-        std::string val = line.substr(colon + 1);
-        while (!val.empty() && val[0] == ' ') val.erase(0,1);
-
-        if (key == "Status") {
-            statusCode = atoi(val.c_str());
-            size_t sp = val.find(' ');
-            statusMsg = (sp != std::string::npos) ? val.substr(sp+1) : "OK";
-        } else if (key == "Content-Type") {
-            contentType = val;
-        } else if (key == "X-Auth-Token") {
-            authToken = val;
-        }
-    }
-
-    if (!authToken.empty())
-        _tokens.push_back(authToken); // now validateToken() will accept it
-
-    Response &resp = client.getResponse();
-    resp.setStatusCode(statusCode, statusMsg);
-    resp.setHeader("Content-Type", contentType);
-    resp.setHeader("Content-Length", intToStr(body.size()));
-    if (!authToken.empty())
-        resp.setHeader("Set-Cookie", "token=" + authToken); // send it to the browser too
-    resp.setBody(body);
-    resp.buildResponse();
-}
 
 // #include <iostream>
 void WebServ::parsing(const std::string &filename) {
