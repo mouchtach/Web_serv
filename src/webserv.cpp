@@ -44,7 +44,7 @@ void WebServ::addserver(int fd, const Config &config) {
 }
 
 void WebServ::addclient(int fd, const Config &config, std::vector<std::string> &tokens) {
-	_clients[fd] = Client(config, tokens, fd);
+    _clients[fd] = Client(config, &tokens, fd);
 }
 
 FD_type WebServ::getFDType(int fd) {
@@ -52,6 +52,27 @@ FD_type WebServ::getFDType(int fd) {
 		return _fdInfos[fd].type;
 	}
 	throw std::runtime_error("FD not found");
+}
+
+void WebServ::closeFd(int fd) {
+	close(fd);
+	_fdInfos.erase(fd);
+	for (std::vector<pollfd>::iterator it = _pollfds.begin(); it != _pollfds.end(); ++it) {
+		if (it->fd == fd) {
+			_pollfds.erase(it);
+			break;
+		}
+	}
+}
+
+void WebServ::removeCgiFd(int fd) {
+    closeFd(fd);
+}
+
+void WebServ::removeClient(int fd) {
+	// use closeFd() to close the fd and remove it from _fdInfos and _pollfds
+	closeFd(fd);
+	_clients.erase(fd);
 }
 
 
@@ -111,6 +132,13 @@ void WebServ::setup() {
 }
 
 void WebServ::polloutprocess(int fd) {
+
+	FD_type type = getFDType(fd);   // <-- check first, don't just index _clients blindly
+
+	if (type == CGI_IN) {
+		cgiWriteBody(fd);
+		return;
+	}
 	// non blokiing send
 	Client &client = _clients[fd];
 	Response &response = client.getResponse();
@@ -143,17 +171,113 @@ void WebServ::polloutprocess(int fd) {
 }
 
 void WebServ::pollinprocess(int fd) {
-
 	FD_type type = getFDType(fd);
 	if (type == FD_SERVER) {
 		newConnection(fd);
 	} else if (type == FD_CLIENT) {
 		readFromClient(fd);
-	} else if (type == CGI) {
-		// cgiProcess(fd);y
+	} else if (type == CGI_OUT) {
+		cgiReadOutput(fd);
 	} else {
 		std::cerr << "Unknown FD type for socket " << fd << std::endl;
 	}
+}
+
+void WebServ::cgiWriteBody(int fd) {
+    Client *client = static_cast<Client*>(_fdInfos[fd].obj);
+    const std::string &body = client->getCgiBody();
+    size_t sent = client->getCgiBodySent();
+
+    if (sent >= body.size()) {
+        closeFd(fd);
+        return;
+    }
+    ssize_t n = write(fd, body.c_str() + sent, body.size() - sent);
+    if (n < 0) {
+        closeFd(fd);
+        return;
+    }
+    client->addCgiBodySent(n);
+}
+
+void WebServ::cgiReadOutput(int fd) {
+    Client *client = static_cast<Client*>(_fdInfos[fd].obj);
+    char buf[4096];
+    ssize_t n = read(fd, buf, sizeof(buf));
+
+    if (n > 0) {
+        client->appendCgiOutput(buf, n);
+        return;
+    }
+    closeFd(fd);   // n == 0 (EOF) or n < 0 (error) — CGI is done sending either way
+    int status;
+    waitpid(client->getCgiPid(), &status, 0);
+    finalizeCgiResponse(*client);
+    changePollToWrite(client->getFd());
+}
+
+// webserv.cpp
+
+void WebServ::parseCgiOutput(const std::string &raw) {
+    _result.statusCode = 200;
+    _result.statusMsg = "OK";
+    _result.headers.clear();   // must clear — map from the PREVIOUS request would leak in otherwise
+    _result.body.clear();
+    size_t pos = 0;
+
+    while (pos < raw.size()) {
+        size_t lineEnd = raw.find('\n', pos);
+        if (lineEnd == std::string::npos) break;
+        std::string line = raw.substr(pos, lineEnd - pos);
+        pos = lineEnd + 1;
+        if (!line.empty() && line[line.size() - 1] == '\r')
+            line.erase(line.size() - 1);
+        if (line.empty())
+            break;
+
+        size_t colon = line.find(':');
+        if (colon == std::string::npos)
+            continue;
+        std::string key = line.substr(0, colon);
+        std::string value = line.substr(colon + 1);
+        size_t s = value.find_first_not_of(" \t");
+        value = (s == std::string::npos) ? "" : value.substr(s);
+
+        if (key == "Status") {
+            _result.statusCode = std::atoi(value.c_str());
+            size_t sp = value.find(' ');
+            _result.statusMsg = (sp != std::string::npos) ? value.substr(sp + 1) : "OK";
+        } else {
+            _result.headers[key] = value;
+        }
+    }
+    _result.body = raw.substr(pos);
+}
+
+void WebServ::storeCgiToken(Client &client) {
+    if (_result.statusCode != 200 || client.getMatchedLocation().getPath() != "/login")
+        return;
+    std::map<std::string, std::string>::const_iterator it = _result.headers.find("X-Auth-Token");
+    if (it != _result.headers.end())
+        _tokens.push_back(it->second);
+}
+
+void WebServ::buildCgiResponse(Client &client) {
+    Response &response = client.getResponse();
+    response.setVersion(client.getRequest().getVersion());
+    response.setStatusCode(_result.statusCode, _result.statusMsg);
+    for (std::map<std::string, std::string>::const_iterator it = _result.headers.begin(); it != _result.headers.end(); ++it)
+        response.setHeader(it->first, it->second);
+    if (_result.headers.find("Content-Type") == _result.headers.end())
+        response.setHeader("Content-Type", "text/html");
+    response.setBody(_result.body);
+    response.buildResponse();
+}
+
+void WebServ::finalizeCgiResponse(Client &client) {
+    parseCgiOutput(client.getCgiOutput());
+    storeCgiToken(client);
+    buildCgiResponse(client);
 }
 
 void WebServ::readFromClient(int fd)
@@ -213,8 +337,8 @@ void WebServ::handleRequest(int fd) {
     if (path == "/signup" || path == "/login" || path == "/cgi") {
 		// print message on red color
 		std::cout << "\033[31mStarting CGI process for path: " << path << "\033[0m" << std::endl;
-        // startCgi(fd);   // NOT cgiProcess — that's for the poll loop
-        return;         // don't changePollToWrite yet; wait for CGI to finish
+        startCgi(fd);
+        return;       
     }
 	
     client.processStatic();

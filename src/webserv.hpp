@@ -13,7 +13,8 @@
 enum FD_type {
     FD_SERVER,
     FD_CLIENT,
-    CGI
+    CGI_OUT,
+    CGI_IN
 };
 
 typedef struct FD_info {
@@ -22,6 +23,12 @@ typedef struct FD_info {
     void *obj;
 } FD_info;
 
+struct CgiResult {
+    int statusCode;
+    std::string statusMsg;
+    std::map<std::string, std::string> headers;
+    std::string body;
+};
 
 class WebServ {
 private:
@@ -31,7 +38,13 @@ private:
     std::map<int , Client> _clients;
     std::map<int , FD_info> _fdInfos;
     std::vector<std::string> _tokens;
+    CgiResult _result;
+
+    void parseCgiOutput(const std::string &raw);   // now void, writes into _result
+    void storeCgiToken(Client &client);
+    void buildCgiResponse(Client &client);
 public:
+    // CgiResult _result;
     WebServ();
     ~WebServ();
     WebServ(const WebServ &other);
@@ -45,11 +58,15 @@ public:
     void polloutprocess(int fd);
     void parsing(const std::string &filename);
 
+    void cgiReadOutput(int fd);   // POLLIN on outPipe[0] — read CGI stdout
+    void cgiWriteBody(int fd); 
     void handleRequest(int fd);
     void addinfo(int fd, FD_type type, void *obj);
     void addpollfd(int fd, short events);
     void addserver(int fd, const Config &config);
     void addclient(int fd, const Config &config, std::vector<std::string> &tokens);
+    void closeFd(int fd);
+    void removeCgiFd(int fd);
     void changePollToWrite(int fd) {
         for (std::vector<pollfd>::iterator it = _pollfds.begin(); it != _pollfds.end(); ++it) {
             if (it->fd == fd) {
@@ -60,18 +77,9 @@ public:
     }
     FD_type getFDType(int fd);
     // void displayConfigs() const;
-    void removeClient(int fd) {
-        _clients.erase(fd);
-        _fdInfos.erase(fd);
-        for (std::vector<pollfd>::iterator it = _pollfds.begin(); it != _pollfds.end(); ++it) {
-            if (it->fd == fd) {
-                _pollfds.erase(it);
-                break;
-            }
-        }
-        close(fd);
-    }
+    void removeClient(int fd);
     void startCgi(int client_fd);          // called from handleRequest
     std::vector<std::string> buildCgiEnv(Client &client, const std::string &scriptPath);
     void finalizeCgiResponse(Client &client);
+
 };

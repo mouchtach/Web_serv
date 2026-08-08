@@ -11,11 +11,17 @@
 class Client {
 private:
 
+    // ... existing members ...
+    std::string _cgiBody;       // request body still to be streamed to the CGI child
+    size_t      _cgiBodySent;   // how many bytes of _cgiBody have been written so far
+
+
+
     Config _config;
     Request _request;
     Response _response;
     Location _matchedLocation;
-    std::vector<std::string> _tokens;
+    std::vector<std::string> *_tokens;
 
     int _fd;                 // the client's own socket fd (needed to route back)
     pid_t _cgiPid;
@@ -23,6 +29,13 @@ private:
     std::string _cgiOutput;  // accumulated raw CGI output
 
 public:
+    void setCgiBody(const std::string &body) {
+        _cgiBody = body;
+        _cgiBodySent = 0;
+    }
+    const std::string &getCgiBody() const { return _cgiBody; }
+    size_t getCgiBodySent() const { return _cgiBodySent; }
+    void addCgiBodySent(size_t n) { _cgiBodySent += n; }
     void setFd(int fd) { _fd = fd; }
     int  getFd() const { return _fd; }
     void setCgiPid(pid_t p) { _cgiPid = p; }
@@ -36,7 +49,7 @@ public:
     Client();
     ~Client();
     Client(const Client &other);
-    Client(const Config &config, const std::vector<std::string> &tokens, int fd);
+    Client(const Config &config, std::vector<std::string> *tokens, int fd);
     Client &operator=(const Client &other);
 
     void receiveBuffer(int fd);

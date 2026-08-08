@@ -17,16 +17,9 @@ Client::~Client() {
 Client::Client(const Client &other) : _config(other._config), _request(other._request), _response(other._response) {
 }
 
-// Client::Client(const Config &config, const std::vector<std::string> &tokens) : _config(config), _tokens(tokens) {
-// 	// set the maximum body size for the request based on the configuration
-// 	_request.set_max_body_size(_config.getClientMaxBodySize());
-// 	std::cout << "Client created with max body size: " << _config.getClientMaxBodySize() << std::endl;
-// }
-
-Client::Client(const Config &config, const std::vector<std::string> &tokens, int fd) : _config(config), _tokens(tokens), _fd(fd) {
-	// set the maximum body size for the request based on the configuration
-	_request.set_max_body_size(_config.getClientMaxBodySize());
-	// std::cout << "Client created with max body size: " << _config.getClientMaxBodySize() << std::endl;
+Client::Client(const Config &config, std::vector<std::string> *tokens, int fd)
+    : _config(config), _tokens(tokens), _fd(fd) {
+    _request.set_max_body_size(_config.getClientMaxBodySize());
 }
 
 Client &Client::operator=(const Client &other) {
@@ -55,13 +48,10 @@ void Client::receiveBuffer(int client_fd) {
 }
 
 bool Client::validateToken(std::string token) {
-	// find the token in the _tokens vector
-	for (std::vector<std::string>::const_iterator it = _tokens.begin(); it != _tokens.end(); ++it) {
-		if (*it == token) {
-			return true; // token is valid
-		}
-	}
-	return false; // token is not valid
+    if (token.empty() || !_tokens) return false;
+    for (std::vector<std::string>::const_iterator it = _tokens->begin(); it != _tokens->end(); ++it)
+        if (*it == token) return true;
+    return false;
 }
 
 void Client::sendFile(const std::string &filepath) {
