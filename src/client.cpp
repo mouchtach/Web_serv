@@ -12,18 +12,31 @@ Client::Client() {}
 
 Client::~Client() {}
 
-Client::Client(const Client &other) : _config(other._config), _request(other._request), _response(other._response) {}
-
 Client::Client(const Config &config, std::vector<std::string> *tokens, int fd)
     : _config(config), _tokens(tokens), _fd(fd) {
     _request.set_max_body_size(_config.getClientMaxBodySize());
 }
+
+
+Client::Client(const Client &other)
+    : _config(other._config), _request(other._request), _response(other._response),
+      _matchedLocation(other._matchedLocation), _tokens(other._tokens), _fd(other._fd),
+      _cgiPid(other._cgiPid), _cgiOutFd(other._cgiOutFd), _cgiOutput(other._cgiOutput),
+      _cgiBody(other._cgiBody), _cgiBodySent(other._cgiBodySent) {}
 
 Client &Client::operator=(const Client &other) {
 	if (this != &other) {
 		_config = other._config;
 		_request = other._request;
 		_response = other._response;
+		_matchedLocation = other._matchedLocation;
+		_tokens = other._tokens;
+		_fd = other._fd;
+		_cgiPid = other._cgiPid;
+		_cgiOutFd = other._cgiOutFd;
+		_cgiOutput = other._cgiOutput;
+		_cgiBody = other._cgiBody;
+		_cgiBodySent = other._cgiBodySent;
 	}
 	return *this;
 }
@@ -67,17 +80,13 @@ void Client::receiveBuffer(int client_fd) {
 		_request.appendData(buffer, bytesRead); 
 		return ;
 	} else if (bytesRead == 0) {
-		std::cout << "Client disconnected on socket " << client_fd << std::endl;
 		throw std::runtime_error("Client disconnected");
 	} else {
-		std::cerr << "Error reading from client on socket " << client_fd << std::endl;
 		throw std::runtime_error("Error reading from client");
 	}
 }
 
 void Client::sendFile(const std::string &filepath) {
-    // print message on green color
-    std::cout << "\033[32mSending file: " << filepath << "\033[0m" << std::endl;
     std::string content = readFile(filepath);
     if (content.empty()) {
         _response.sendError(404, "Not Found");
@@ -91,8 +100,6 @@ void Client::sendFile(const std::string &filepath) {
 }
 
 void Client::redirect(int code, const std::string &newLocation) {
-    // print megsage on pink color
-    std::cout << "\033[35mRedirecting to: " << newLocation << "\033[0m" << std::endl;
     _response.setVersion(_request.getVersion());
     _response.setStatusCode(code, "Moved Permanently");
     _response.setHeader("Location", newLocation);
@@ -101,8 +108,6 @@ void Client::redirect(int code, const std::string &newLocation) {
 }
 
 void Client::processAutoIndex(const std::string &uri, const std::string &target) {
-    // print message on blue color
-    std::cout << "\033[34mGenerating autoindex for: " << target << "\033[0m" << std::endl;
     std::string html = buildAutoIndex(target, uri);
     if (html.empty()) {
         _response.sendError(403, "Forbidden");
@@ -117,7 +122,6 @@ void Client::processAutoIndex(const std::string &uri, const std::string &target)
 
 void Client::handleStaticGET(const std::string &target, const std::string &uri) {
     // print message on green color
-    std::cout << "\033[32mHandling GET request for: " << target << "\033[0m" << std::endl;
     struct stat st;
     if (stat(target.c_str(), &st) == -1) {
         _response.sendError(404, "Not Found");
@@ -151,7 +155,6 @@ void Client::handleStaticGET(const std::string &target, const std::string &uri) 
 void Client::handleStaticPOST(const std::string &target) {
     
     std::string filename = takenamefile(_request.getBody());
-    std::cout << "\033[33mReceived POST request for file: " << filename << "\033[0m" << std::endl;
     std::ofstream out((target+ "/" + filename).c_str(), std::ios::binary);
     if (!out) {
         _response.sendError(500, "Internal Server Error");
@@ -167,7 +170,6 @@ void Client::handleStaticPOST(const std::string &target) {
 
 void Client::handleStaticDELETE(const std::string &target) {
     // print message on red color
-    std::cout << "\033[31mHandling DELETE request for: " << target << "\033[0m" << std::endl;
     struct stat st;
     if (stat(target.c_str(), &st) == -1) {
         _response.sendError(404, "Not Found");
@@ -261,10 +263,8 @@ void Client::matchLocation()
             scriptPath = appendPath(root, "/login.py");
         else 
         {
-            std::string suffix = requestUri.compare(0, locPath.length(), locPath) == 0
-                                ? requestUri.substr(locPath.length())
-                                : requestUri;
-            scriptPath = appendPath(root, suffix);
+            scriptPath = appendPath(root, "/run_c.py");
+            // std::cout << "\033[33mCGI script path: " << scriptPath << "\033[0m" << std::endl;
         }
         _matchedLocation.setTargetPath(scriptPath);
     }
@@ -286,20 +286,29 @@ bool Client::isMethodeAllowed() {
 
 void Client::checkAccess() {
     const std::string &locationPath = _matchedLocation.getPath();
-    if (_request.getUri() == "/login.html" || _request.getUri() == "/signup.html" || locationPath == "/static") {
+    const std::string &uri = _request.getUri();
+    bool valid = validateToken(_request.getToken());
+
+    if (locationPath == "/static") {
         return;
     }
-    if ((_matchedLocation.getPath() == "/signup" || _matchedLocation.getPath() == "/login" ) && validateToken(_request.getToken())) {
-        throw redirectException("/index.html");
+
+    if (uri == "/login.html" || uri == "/signup.html" || locationPath == "/login" || locationPath == "/signup") {
+        if (valid)
+            throw redirectException("/");
+        return;
     }
-    else if (_matchedLocation.getPath() != "/signup" && _matchedLocation.getPath() != "/login" && !validateToken(_request.getToken())) {
+
+    if (!valid)
         throw redirectException("/login.html");
-    }
 }
 
 bool Client::validateToken(std::string token) {
     if (token.empty() || !_tokens) return false;
     for (std::vector<std::string>::const_iterator it = _tokens->begin(); it != _tokens->end(); ++it)
-        if (*it == token) return true;
+    {
+        if (*it == token) 
+            return true;
+    }
     return false;
 }

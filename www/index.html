@@ -98,10 +98,10 @@
       <span class="hint">fork + execve, output piped back through the response</span>
     </div>
     <div class="panel">
-      <div class="panel-header"><span class="dot"></span>GET /cgi/info.py</div>
+      <div class="panel-header"><span class="dot"></span>GET /cgi/run_c.py</div>
       <div class="panel-body">
         <p style="color:var(--text-muted); font-size:13px; margin-bottom:10px;">
-          Executes <code style="font-family:var(--font-mono); color:var(--text);">cgi/info.py</code>
+          Executes <code style="font-family:var(--font-mono); color:var(--text);">cgi/run_c.py</code>
           through the CGI handler and prints the environment the script received.
         </p>
         <button class="btn" id="cgi-btn">Run script</button>
@@ -261,6 +261,7 @@ async function refreshFiles() {
   fileListEl.innerHTML = '<div class="empty-hint">loading…</div>';
   try {
     const res = await fetch('/upload/');
+    // const res = await fetch('/cgi/run_c.py');
     const html = await res.text();
     const doc = new DOMParser().parseFromString(html, 'text/html');
     const anchors = Array.from(doc.querySelectorAll('a'));
@@ -343,13 +344,13 @@ cgiBtn.addEventListener('click', async () => {
   cgiBtn.disabled = true;
   cgiOut.textContent = 'running…';
   try {
-    const res = await fetch('/cgi/info.py');
+    const res = await fetch('/cgi/run_c.py');
     const text = await res.text();
     cgiOut.textContent = text || '(empty output)';
-    logRequest('GET', '/cgi/info.py', res.status, res.ok ? 'script executed' : 'cgi failed');
+    logRequest('GET', '/cgi/run_c.py', res.status, res.ok ? 'script executed' : 'cgi failed');
   } catch (err) {
-    cgiOut.textContent = 'could not reach /cgi/info.py\n' + err.message;
-    logRequest('GET', '/cgi/info.py', 0, err.message);
+    cgiOut.textContent = 'could not reach /cgi/run_c.py\n' + err.message;
+    logRequest('GET', '/cgi/run_c.py', 0, err.message);
   }
   cgiBtn.disabled = false;
 });

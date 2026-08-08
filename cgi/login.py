@@ -12,7 +12,7 @@ users = load_users()
 user = users.get(username)
 
 if user and user["password"] == password:
-    print("Status: 200 OK\r\nContent-Type: application/json\r\nX-Auth-Token: " + user["token"] + "\r\n")
+    print("Status: 200 OK\r\nContent-Type: application/json\r\nSet-Cookie: token=" + user["token"] + "; Path=/\r\n")
     print('{"username": "%s"}' % username)
 else:
     print("Status: 401 Unauthorized\r\nContent-Type: application/json\r\n")

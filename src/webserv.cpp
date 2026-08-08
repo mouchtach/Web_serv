@@ -79,7 +79,6 @@ void WebServ::removeCgiFd(int fd) {
 }
 
 void WebServ::removeClient(int fd) {
-	// use closeFd() to close the fd and remove it from _fdInfos and _pollfds
 	closeFd(fd);
 	_clients.erase(fd);
 }
@@ -94,11 +93,9 @@ void WebServ::newConnection(int server_fd) {
 		if (fcntl(client_fd, F_SETFL, O_NONBLOCK) < 0) {
 			throw std::runtime_error("Failed to set client socket to non-blocking");
 		}
-		addclient(client_fd, _servers[server_fd].getConfig(), _tokens);  // Create a Client object for this socket
-		addpollfd(client_fd, POLLIN); // Add the client socket to the pollfd vector
-		addinfo(client_fd, FD_CLIENT, &_clients[client_fd]);  // Store the client socket info
-		// set_max_body_size(_servers[server_fd].getConfig().getClientMaxBodySize());
-		// std::cout << "New connection accepted on socket " << client_fd << std::endl;
+		addclient(client_fd, _servers[server_fd].getConfig(), _tokens);
+		addpollfd(client_fd, POLLIN); 
+		addinfo(client_fd, FD_CLIENT, &_clients[client_fd]);
 	} catch (const std::exception &e) {
 		std::cerr << "Error in newConnection: " << e.what() << std::endl;
 	}
@@ -107,7 +104,6 @@ void WebServ::newConnection(int server_fd) {
 #include <iostream>
 
 void WebServ::setup() {
-	// setup server socket bind lestin fcntl setsockopt
 	for (size_t i = 0; i < _configs.size(); ++i) {
 
 		sockaddr_in address;
@@ -136,7 +132,6 @@ void WebServ::setup() {
 		addserver(fd, _configs[i]);  // Create a Server object for this socket
 		addpollfd(fd, POLLIN); // Add the server socket to the pollfd vector
 		addinfo(fd, FD_SERVER, &_servers[fd]);  // Store the server socket info
-		std::cout  << "Server listening on port " << _configs[i].getPort() << std::endl;
 	}
 }
 
@@ -168,14 +163,8 @@ void WebServ::polloutprocess(int fd) {
 		return;	
 	}
 	response.addBytesSent(bytesSent);
-	if (!response.isFullySent()) {
-		std::cout << "Partial response sent to client on socket " << fd << std::endl;
-	} else {
-		// std::cout << "Full response sent to client on socket " << fd << std::endl;
-		// std::cout << "Response : " << responseStr << std::endl;
+	if (response.isFullySent()) {
 		removeClient(fd);
-
-		// exit(0);
 	}
 }
 
@@ -266,9 +255,18 @@ void WebServ::parseCgiOutput(const std::string &raw) {
 void WebServ::storeCgiToken(Client &client) {
     if (_result.statusCode != 200 || client.getMatchedLocation().getPath() != "/login")
         return;
-    std::map<std::string, std::string>::const_iterator it = _result.headers.find("X-Auth-Token");
-    if (it != _result.headers.end())
-        _tokens.push_back(it->second);
+    std::map<std::string, std::string>::const_iterator it = _result.headers.find("Set-Cookie");
+    if (it == _result.headers.end())
+        return;
+    const std::string &cookie = it->second;
+    size_t pos = cookie.find("token=");
+    if (pos == std::string::npos)
+        return;
+    pos += 6;
+    size_t end = cookie.find(';', pos);
+    std::string token = (end == std::string::npos) ? cookie.substr(pos) : cookie.substr(pos, end - pos);
+    if (!token.empty())
+        _tokens.push_back(token);
 }
 
 void WebServ::buildCgiResponse(Client &client) {
@@ -291,20 +289,17 @@ void WebServ::finalizeCgiResponse(Client &client) {
 
 void WebServ::readFromClient(int fd)
 {
-
     Client &client = _clients[fd];
     Request &request = client.getRequest();
     char buffer[4096];
     ssize_t n = recv(fd, buffer, sizeof(buffer), 0);
     if (n == 0)
     {
-		std::cout << "Client disconnected on socket " << fd << std::endl;
         removeClient(fd);
         return;
     }
     if (n < 0)
     {
-		std::cout << "Error reading from client on socket " << fd << std::endl;
         removeClient(fd);
         return;
     }
@@ -312,11 +307,7 @@ void WebServ::readFromClient(int fd)
     request.parse();
     if (!request.isRequestComplete())
         return;
-	// print the request for debugging
-	// request.displayRequest();
-
     handleRequest(fd);
-	// changePollToWrite(fd);
 }
 
 #include <sys/stat.h>
@@ -336,12 +327,7 @@ std::vector<std::string> WebServ::buildCgiEnv(Client &client, const std::string 
     return env;
 }
 
-// #include <sys/wait.h>
-// #include <unistd.h>
-// #include <fcntl.h>
 #include <sys/stat.h>
-
-
 
 void WebServ::startCgi(int client_fd) {
     Client &client = _clients[client_fd];
@@ -437,15 +423,11 @@ void WebServ::handleRequest(int fd) {
 
     std::string path = client.getMatchedLocation().getPath();
     if (path == "/signup" || path == "/login" || path == "/cgi") {
-		// print message on red color
-		std::cout << "\033[31mStarting CGI process for path: " << path << "\033[0m" << std::endl;
         startCgi(fd);
         return;       
     }
-	
     client.processStatic();
     changePollToWrite(fd);
-
 }
 
 void WebServ::start() {
@@ -487,3 +469,35 @@ void WebServ::parsing(const std::string &filename) {
 	_configs = configParser.getConfigs();
 }
 	
+void WebServ::loadTokens(const std::string &filename) {
+    std::ifstream file(filename.c_str());
+    if (!file.is_open()) {
+        return;
+    }
+    std::ostringstream ss;
+    ss << file.rdbuf();
+    std::string content = ss.str();
+    const std::string key = "\"token\"";
+    size_t pos = 0;
+    while ((pos = content.find(key, pos)) != std::string::npos) {
+        pos += key.size();
+
+        size_t colon = content.find(':', pos);
+        if (colon == std::string::npos)
+            break;
+
+        size_t firstQuote = content.find('"', colon);
+        if (firstQuote == std::string::npos)
+            break;
+
+        size_t secondQuote = content.find('"', firstQuote + 1);
+        if (secondQuote == std::string::npos)
+            break;
+
+        std::string token = content.substr(firstQuote + 1, secondQuote - firstQuote - 1);
+        if (!token.empty())
+            _tokens.push_back(token);
+
+        pos = secondQuote + 1;
+    }
+}

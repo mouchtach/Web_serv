@@ -95,13 +95,21 @@ form.addEventListener('submit', async (e) => {
   btn.disabled = true;
   btn.textContent = 'Logging in…';
 
-  const fd = new FormData(form);
+  // Sent as application/x-www-form-urlencoded — matches what login.py
+  // expects (parse_qs on the raw body), and is trivial to parse on the
+  // C++98 side too. A plain multipart FormData body will NOT parse
+  // correctly here, so don't switch this back without updating login.py.
+  const params = new URLSearchParams(new FormData(form));
 
   try {
-    const res = await fetch('/login', { method: 'POST', body: fd });
+    const res = await fetch('/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: params.toString()
+    });
     showStatus(res.status);
     if (res.ok) {
-      // adjust redirect target to match your project's routes
+      // browser now holds the token cookie set by login.py
       window.location.href = '/';
     }
   } catch (err) {

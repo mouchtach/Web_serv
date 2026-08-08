@@ -9,15 +9,14 @@ int main(int ac, char **av){
     }
     if (ac == 2) {
         filename = av[1];
-        //rprint green message to indicate the config file being used
-        std::cout << "\033[32mUsing config file: " << filename << "\033[0m" << std::endl;
     } else {
         filename = "config/config.conf";
-        std::cout << "\033[32mUsing default config file: " << filename << "\033[0m" << std::endl;
     }
     WebServ server;
     try {
+
         server.parsing(filename);
+        server.loadTokens("cgi/users.json");
         server.setup();
         server.start();
     }

@@ -3,6 +3,7 @@ NAME = webserv
 CXX = c++
 CXXFLAGS = -Wall -Wextra -Werror -std=c++98 -g
 
+
 SRC = main.cpp \
 	parssing/configparssing.cpp \
 	parssing/location.cpp \
