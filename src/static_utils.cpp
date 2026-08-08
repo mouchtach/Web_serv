@@ -6,6 +6,21 @@
 #include <dirent.h>
 #include <algorithm>
 
+
+std::string takenamefile(const std::string &body) {
+    // Find the filename in the body
+    std::string filename;
+    size_t pos = body.find("filename=\"");
+    if (pos != std::string::npos) {
+        pos += 10; // Move past 'filename="'
+        size_t endPos = body.find("\"", pos);
+        if (endPos != std::string::npos) {
+            filename = body.substr(pos, endPos - pos);
+        }
+    }
+    return filename;
+}
+
 std::string readFile(const std::string &filepath) {
     std::ifstream file(filepath.c_str(), std::ios::binary);
     if (!file.is_open())
@@ -77,4 +92,29 @@ std::string buildAutoIndex(const std::string &dirPath, const std::string &uri) {
         html << "<tr><td><a href=\"" << files[i] << "\">" << files[i] << "</a></td></tr>";
     html << "</table></body></html>";
     return html.str();
+}
+
+std::string getBoundary(const std::string &contentType)
+{
+    size_t pos = contentType.find("boundary=");
+    if (pos == std::string::npos)
+        return "";
+
+    return contentType.substr(pos + 9);
+}
+
+
+std::string takeBodyContent(const std::string &body, const std::string &boundary)
+{
+    size_t start = body.find("\r\n\r\n");
+    if (start == std::string::npos)
+        return "";
+
+    start += 4;
+
+    std::string delimiter = "\r\n--" + boundary;
+    size_t end = body.find(delimiter, start);
+    if (end == std::string::npos)
+        return "";
+    return body.substr(start, end - start);
 }

@@ -44,7 +44,6 @@ private:
     void storeCgiToken(Client &client);
     void buildCgiResponse(Client &client);
 public:
-    // CgiResult _result;
     WebServ();
     ~WebServ();
     WebServ(const WebServ &other);
@@ -67,14 +66,7 @@ public:
     void addclient(int fd, const Config &config, std::vector<std::string> &tokens);
     void closeFd(int fd);
     void removeCgiFd(int fd);
-    void changePollToWrite(int fd) {
-        for (std::vector<pollfd>::iterator it = _pollfds.begin(); it != _pollfds.end(); ++it) {
-            if (it->fd == fd) {
-                it->events = POLLOUT;
-                break;
-            }
-        }
-    }
+    void changePollToWrite(int fd);
     FD_type getFDType(int fd);
     // void displayConfigs() const;
     void removeClient(int fd);

@@ -65,6 +65,15 @@ void WebServ::closeFd(int fd) {
 	}
 }
 
+void WebServ::changePollToWrite(int fd) {
+	for (std::vector<pollfd>::iterator it = _pollfds.begin(); it != _pollfds.end(); ++it) {
+		if (it->fd == fd) {
+			it->events = POLLOUT;
+			break;
+		}
+	}
+}
+
 void WebServ::removeCgiFd(int fd) {
     closeFd(fd);
 }
@@ -282,6 +291,7 @@ void WebServ::finalizeCgiResponse(Client &client) {
 
 void WebServ::readFromClient(int fd)
 {
+
     Client &client = _clients[fd];
     Request &request = client.getRequest();
     char buffer[4096];
@@ -303,16 +313,108 @@ void WebServ::readFromClient(int fd)
     if (!request.isRequestComplete())
         return;
 	// print the request for debugging
-	request.displayRequest();
+	// request.displayRequest();
 
     handleRequest(fd);
-	changePollToWrite(fd);
+	// changePollToWrite(fd);
 }
+
+#include <sys/stat.h>
+
+std::vector<std::string> WebServ::buildCgiEnv(Client &client, const std::string &scriptPath) {
+    std::vector<std::string> env;
+
+    env.push_back("REQUEST_METHOD=" + client.getRequest().getMethod());
+    env.push_back("CONTENT_LENGTH=" + intToStr((int)client.getRequest().getBody().size()));
+    env.push_back("CONTENT_TYPE=" + client.getRequest().getContentType());
+    env.push_back("SCRIPT_FILENAME=" + scriptPath);
+    env.push_back("SERVER_PROTOCOL=" + client.getRequest().getVersion());
+    env.push_back("GATEWAY_INTERFACE=CGI/1.1");
+    env.push_back("SERVER_SOFTWARE=webserv/1.0");
+    env.push_back("HTTP_COOKIE=" + client.getRequest().getToken());
+
+    return env;
+}
+
+// #include <sys/wait.h>
+// #include <unistd.h>
+// #include <fcntl.h>
+#include <sys/stat.h>
 
 
 
 void WebServ::startCgi(int client_fd) {
-	(void)client_fd; // to avoid unused parameter warning
+    Client &client = _clients[client_fd];
+    const Location &loc = client.getMatchedLocation();
+
+    std::string scriptPath = loc.getTargetPath();
+    std::string interpreter = loc.getCgiPath();
+
+    struct stat st;
+    if (stat(scriptPath.c_str(), &st) != 0) {
+        client.getResponse().sendError(404, "Not Found");
+        changePollToWrite(client_fd);
+        return;
+    }
+
+    int inPipe[2];
+    int outPipe[2];
+    if (pipe(inPipe) < 0 || pipe(outPipe) < 0) {
+        client.getResponse().sendError(500, "Internal Server Error");
+        changePollToWrite(client_fd);
+        return;
+    }
+
+    pid_t pid = fork();
+    if (pid < 0) {
+        close(inPipe[0]); close(inPipe[1]);
+        close(outPipe[0]); close(outPipe[1]);
+        client.getResponse().sendError(500, "Internal Server Error");
+        changePollToWrite(client_fd);
+        return;
+    }
+
+    if (pid == 0) {
+        dup2(inPipe[0], STDIN_FILENO);
+        dup2(outPipe[1], STDOUT_FILENO);
+        close(inPipe[0]); close(inPipe[1]);
+        close(outPipe[0]); close(outPipe[1]);
+
+        std::vector<std::string> envStrs = buildCgiEnv(client, scriptPath);
+        std::vector<char*> envp;
+        for (size_t i = 0; i < envStrs.size(); ++i)
+            envp.push_back(const_cast<char*>(envStrs[i].c_str()));
+        envp.push_back(NULL);
+
+        char *argv[] = {
+            const_cast<char*>(interpreter.c_str()),
+            const_cast<char*>(scriptPath.c_str()),
+            NULL
+        };
+
+        execve(interpreter.c_str(), argv, envp.data());
+        std::exit(1);
+    }
+
+    close(inPipe[0]);
+    close(outPipe[1]);
+    fcntl(inPipe[1], F_SETFL, O_NONBLOCK);
+    fcntl(outPipe[0], F_SETFL, O_NONBLOCK);
+
+    client.setCgiPid(pid);
+    client.setCgiOutFd(outPipe[0]);
+    client.setCgiBody(client.getRequest().getBody());
+    client.setFd(client_fd);
+
+    addinfo(outPipe[0], CGI_OUT, &client);
+    addpollfd(outPipe[0], POLLIN);
+
+    if (client.getCgiBody().empty()) {
+        close(inPipe[1]);
+    } else {
+        addinfo(inPipe[1], CGI_IN, &client);
+        addpollfd(inPipe[1], POLLOUT);
+    }
 }
 
 
@@ -342,7 +444,7 @@ void WebServ::handleRequest(int fd) {
     }
 	
     client.processStatic();
-    // changePollToWrite(fd);
+    changePollToWrite(fd);
 
 }
 

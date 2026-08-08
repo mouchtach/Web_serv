@@ -8,14 +8,11 @@
 #include <sys/stat.h>
 #include <fstream>
 
-Client::Client() {
-}
+Client::Client() {}
 
-Client::~Client() {
-}
+Client::~Client() {}
 
-Client::Client(const Client &other) : _config(other._config), _request(other._request), _response(other._response) {
-}
+Client::Client(const Client &other) : _config(other._config), _request(other._request), _response(other._response) {}
 
 Client::Client(const Config &config, std::vector<std::string> *tokens, int fd)
     : _config(config), _tokens(tokens), _fd(fd) {
@@ -30,7 +27,38 @@ Client &Client::operator=(const Client &other) {
 	}
 	return *this;
 }
-#include <iostream>
+
+
+// Getters
+
+Request &Client::getRequest() { return _request; }
+Response &Client::getResponse() { return _response; }
+Location Client::getMatchedLocation() const { return _matchedLocation; }
+const Config &Client::getConfig() const { return _config; }
+const std::string &Client::getCgiOutput() const { return _cgiOutput; }
+const std::string &Client::getCgiBody() const { return _cgiBody; }
+size_t Client::getCgiBodySent() const { return _cgiBodySent; }
+int Client::getFd() const { return _fd; }
+pid_t Client::getCgiPid() const { return _cgiPid; }
+int Client::getCgiOutFd() const { return _cgiOutFd; }
+
+
+// Setters
+
+void Client::setCgiBody(const std::string &body) {
+    _cgiBody = body;
+    _cgiBodySent = 0;
+}
+void Client::setFd(int fd) { _fd = fd; }
+void Client::setCgiPid(pid_t p) { _cgiPid = p; }
+void Client::setCgiOutFd(int fd) { _cgiOutFd = fd; }
+
+
+// CGI methods
+
+void Client::appendCgiOutput(const char *buf, size_t n) { _cgiOutput.append(buf, n); }
+void Client::addCgiBodySent(size_t n) { _cgiBodySent += n; }
+
 
 void Client::receiveBuffer(int client_fd) {
 	char buffer[4096];
@@ -45,13 +73,6 @@ void Client::receiveBuffer(int client_fd) {
 		std::cerr << "Error reading from client on socket " << client_fd << std::endl;
 		throw std::runtime_error("Error reading from client");
 	}
-}
-
-bool Client::validateToken(std::string token) {
-    if (token.empty() || !_tokens) return false;
-    for (std::vector<std::string>::const_iterator it = _tokens->begin(); it != _tokens->end(); ++it)
-        if (*it == token) return true;
-    return false;
 }
 
 void Client::sendFile(const std::string &filepath) {
@@ -71,7 +92,6 @@ void Client::sendFile(const std::string &filepath) {
 
 void Client::redirect(int code, const std::string &newLocation) {
     // print megsage on pink color
-
     std::cout << "\033[35mRedirecting to: " << newLocation << "\033[0m" << std::endl;
     _response.setVersion(_request.getVersion());
     _response.setStatusCode(code, "Moved Permanently");
@@ -128,45 +148,6 @@ void Client::handleStaticGET(const std::string &target, const std::string &uri) 
     _response.sendError(403, "Forbidden");
 }
 
-
-std::string takenamefile(const std::string &body) {
-    // Find the filename in the body
-    std::string filename;
-    size_t pos = body.find("filename=\"");
-    if (pos != std::string::npos) {
-        pos += 10; // Move past 'filename="'
-        size_t endPos = body.find("\"", pos);
-        if (endPos != std::string::npos) {
-            filename = body.substr(pos, endPos - pos);
-        }
-    }
-    return filename;
-}
-
-std::string getBoundary(const std::string &contentType)
-{
-    size_t pos = contentType.find("boundary=");
-    if (pos == std::string::npos)
-        return "";
-
-    return contentType.substr(pos + 9);
-}
-
-std::string takeBodyContent(const std::string &body, const std::string &boundary)
-{
-    size_t start = body.find("\r\n\r\n");
-    if (start == std::string::npos)
-        return "";
-
-    start += 4;
-
-    std::string delimiter = "\r\n--" + boundary;
-    size_t end = body.find(delimiter, start);
-    if (end == std::string::npos)
-        return "";
-    return body.substr(start, end - start);
-}
-
 void Client::handleStaticPOST(const std::string &target) {
     
     std::string filename = takenamefile(_request.getBody());
@@ -203,7 +184,6 @@ void Client::handleStaticDELETE(const std::string &target) {
 }
 
 
-
 void Client::processStatic() {
     const std::string &uri = _request.getUri();
     if (!isPathSafe(uri)) {
@@ -230,4 +210,96 @@ void Client::processStatic() {
         handleStaticDELETE(target);
     else
         _response.sendError(501, "Not Implemented");
+}
+
+void Client::matchLocation()
+{
+    const std::vector<Location> &locations = _config.getLocations();
+    const std::string &requestUri = _request.getUri();
+
+    const Location *bestMatch = NULL;
+    size_t bestLength = 0;
+
+    for (std::vector<Location>::const_iterator it = locations.begin();
+        it != locations.end(); ++it)
+    {
+        const std::string &locationPath = it->getPath();
+
+        if (requestUri.compare(0, locationPath.length(), locationPath) != 0)
+            continue;
+
+        bool valid = false;
+        if (requestUri.length() == locationPath.length())
+            valid = true;
+        else if (locationPath == "/")
+            valid = true;
+        else if (requestUri[locationPath.length()] == '/')
+            valid = true;
+
+        if (!valid)
+            continue;
+
+        if (locationPath.length() > bestLength)
+        {
+            bestMatch = &(*it);
+            bestLength = locationPath.length();
+        }
+    }
+
+    if (bestMatch)
+        _matchedLocation = *bestMatch;
+
+    const std::string &locPath = _matchedLocation.getPath();
+    if (locPath == "/signup" || locPath == "/login" || locPath == "/cgi")
+    {
+        std::string root = _matchedLocation.getRoot();
+        std::string scriptPath;
+
+        if (locPath == "/signup")
+            scriptPath = appendPath(root, "/signup.py");
+        else if (locPath == "/login")
+            scriptPath = appendPath(root, "/login.py");
+        else 
+        {
+            std::string suffix = requestUri.compare(0, locPath.length(), locPath) == 0
+                                ? requestUri.substr(locPath.length())
+                                : requestUri;
+            scriptPath = appendPath(root, suffix);
+        }
+        _matchedLocation.setTargetPath(scriptPath);
+    }
+}
+
+bool Client::isMethodeAllowed() {
+    const std::vector<std::string> &allowedMethods = _matchedLocation.getMethods();
+    if (allowedMethods.empty()) {
+        return true;
+    }
+    const std::string &requestMethod = _request.getMethod();
+    for (std::vector<std::string>::const_iterator it = allowedMethods.begin(); it != allowedMethods.end(); ++it) {
+        if (*it == requestMethod) {
+            return true;
+        }
+    }
+    return false;
+}
+
+void Client::checkAccess() {
+    const std::string &locationPath = _matchedLocation.getPath();
+    if (_request.getUri() == "/login.html" || _request.getUri() == "/signup.html" || locationPath == "/static") {
+        return;
+    }
+    if ((_matchedLocation.getPath() == "/signup" || _matchedLocation.getPath() == "/login" ) && validateToken(_request.getToken())) {
+        throw redirectException("/index.html");
+    }
+    else if (_matchedLocation.getPath() != "/signup" && _matchedLocation.getPath() != "/login" && !validateToken(_request.getToken())) {
+        throw redirectException("/login.html");
+    }
+}
+
+bool Client::validateToken(std::string token) {
+    if (token.empty() || !_tokens) return false;
+    for (std::vector<std::string>::const_iterator it = _tokens->begin(); it != _tokens->end(); ++it)
+        if (*it == token) return true;
+    return false;
 }

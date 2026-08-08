@@ -2,8 +2,6 @@
 #include "src/webserv.hpp"
 
 int main(int ac, char **av){
-
-    
     std::string filename;
     if(ac > 2) {
         std::cerr << "Error: Too many arguments" << std::endl;
@@ -22,13 +20,9 @@ int main(int ac, char **av){
         server.parsing(filename);
         server.setup();
         server.start();
-        
-        // server.displayConfigs();
     }
     catch (const std::exception &e) {
         std::cerr << "Error: " << e.what() << std::endl;
         return 1;
     }
-
-    // server.start();
 }
