@@ -100,6 +100,7 @@ void Client::sendFile(const std::string &filepath) {
 }
 
 void Client::redirect(int code, const std::string &newLocation) {
+    std::cout << "\033[33m[REDIR] -> " << newLocation << " (" << code << ")\033[0m" << std::endl;
     _response.setVersion(_request.getVersion());
     _response.setStatusCode(code, "Moved Permanently");
     _response.setHeader("Location", newLocation);
@@ -121,43 +122,49 @@ void Client::processAutoIndex(const std::string &uri, const std::string &target)
 }
 
 void Client::handleStaticGET(const std::string &target, const std::string &uri) {
-    // print message on green color
     struct stat st;
     if (stat(target.c_str(), &st) == -1) {
         _response.sendError(404, "Not Found");
+        std::cout << "\033[32m[GET]    " << uri << " -> 404\033[0m" << std::endl;
         return;
     }
     if (S_ISREG(st.st_mode)) {
         sendFile(target);
+        std::cout << "\033[32m[GET]    " << uri << " -> " << _response.getStatusCode() << "\033[0m" << std::endl;
         return;
     }
     if (S_ISDIR(st.st_mode)) {
         if (uri.empty() || uri[uri.size()-1] != '/') {
             redirect(301, uri + "/");
+            std::cout << "\033[32m[GET]    " << uri << " -> 301\033[0m" << std::endl;
             return;
         }
         std::string indexPath = appendPath(target, _matchedLocation.getIndex());
         struct stat ist;
         if (!_matchedLocation.getIndex().empty() && stat(indexPath.c_str(), &ist) == 0 && S_ISREG(ist.st_mode)) {
             sendFile(indexPath);
+            std::cout << "\033[32m[GET]    " << uri << " -> " << _response.getStatusCode() << "\033[0m" << std::endl;
             return;
         }
         if (_matchedLocation.getAutoindex()) {
             processAutoIndex(uri, target);
+            std::cout << "\033[32m[GET]    " << uri << " -> " << _response.getStatusCode() << "\033[0m" << std::endl;
             return;
         }
         _response.sendError(403, "Forbidden");
+        std::cout << "\033[32m[GET]    " << uri << " -> 403\033[0m" << std::endl;
         return;
     }
     _response.sendError(403, "Forbidden");
+    std::cout << "\033[32m[GET]    " << uri << " -> 403\033[0m" << std::endl;
 }
 
 void Client::handleStaticPOST(const std::string &target) {
-    
     std::string filename = takenamefile(_request.getBody());
     std::ofstream out((target+ "/" + filename).c_str(), std::ios::binary);
     if (!out) {
         _response.sendError(500, "Internal Server Error");
+        std::cout << "\033[33m[POST]   " << target << " -> 500\033[0m" << std::endl;
         return;
     }
     out << takeBodyContent(_request.getBody(), getBoundary(_request.getContentType()));
@@ -166,23 +173,30 @@ void Client::handleStaticPOST(const std::string &target) {
     _response.setStatusCode(200, "OK");
     _response.setHeader("Content-Length", "0");
     _response.buildResponse();
+    std::cout << "\033[33m[POST]   " << target << " -> 200\033[0m" << std::endl;
+
 }
 
 void Client::handleStaticDELETE(const std::string &target) {
     // print message on red color
+    std::cout << "\033[31m[DELETE] " << target << " -> " << _response.getStatusCode() << "\033[0m" << std::endl;
     struct stat st;
     if (stat(target.c_str(), &st) == -1) {
         _response.sendError(404, "Not Found");
+        std::cout << "\033[31m[DELETE] " << target << " -> 404\033[0m" << std::endl;
         return;
     }
     if (remove(target.c_str()) != 0) {
         _response.sendError(500, "Internal Server Error");
+        std::cout << "\033[31m[DELETE] " << target << " -> 500\033[0m" << std::endl;
         return;
     }
     _response.setVersion(_request.getVersion());
     _response.setStatusCode(200, "OK");
     _response.setHeader("Content-Length", "0");
     _response.buildResponse();
+    std::cout << "\033[31m[DELETE] " << target << " -> 200\033[0m" << std::endl;
+
 }
 
 
@@ -288,7 +302,7 @@ void Client::checkAccess() {
     const std::string &locationPath = _matchedLocation.getPath();
     const std::string &uri = _request.getUri();
     bool valid = validateToken(_request.getToken());
-
+    std::cout << "\033[95m[AUTH] uri=" << uri << " valid=" << (valid ? "yes" : "no") << "\033[0m" << std::endl;
     if (locationPath == "/static") {
         return;
     }

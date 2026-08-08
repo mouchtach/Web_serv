@@ -1,5 +1,6 @@
 #include "configparssing.hpp"
 #include "utils.hpp"
+#include <iostream>
 
 ConfigParssing::ConfigParssing(const std::string &filename) : _filename(filename) {
 }

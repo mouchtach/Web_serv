@@ -115,20 +115,16 @@ bool Request::parseHeader()
 
 void Request::validateHeaders()
 {
-    // check duplicate headers key 
-
-
-
     if (_method == "POST" && !has_content_length)
     {
         std::cerr << "POST request without Content-Length header" << std::endl;
         throw HttpException(400, "Bad Request");
     }
-      
+    // condition if max body is  == 0  allow all 
 
-    if (has_content_length && _content_length > _max_body_size)
+      
+    if (has_content_length && _content_length > _max_body_size && _max_body_size != 0)
         throw HttpException(413, "Payload Too Large");
-    
 
 }
 

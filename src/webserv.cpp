@@ -96,6 +96,7 @@ void WebServ::newConnection(int server_fd) {
 		addclient(client_fd, _servers[server_fd].getConfig(), _tokens);
 		addpollfd(client_fd, POLLIN); 
 		addinfo(client_fd, FD_CLIENT, &_clients[client_fd]);
+		std::cout << "\033[36m[NET] New connection accepted on fd " << client_fd << "\033[0m" << std::endl;
 	} catch (const std::exception &e) {
 		std::cerr << "Error in newConnection: " << e.what() << std::endl;
 	}
@@ -217,11 +218,12 @@ void WebServ::cgiReadOutput(int fd) {
 // webserv.cpp
 
 void WebServ::parseCgiOutput(const std::string &raw) {
-    _result.statusCode = 200;
+	_result.statusCode = 200;
     _result.statusMsg = "OK";
     _result.headers.clear();   // must clear — map from the PREVIOUS request would leak in otherwise
     _result.body.clear();
     size_t pos = 0;
+	std::cout << "\033[35m[CGI] Response: " << _result.statusCode << " " << _result.statusMsg << "\033[0m" << std::endl;
 
     while (pos < raw.size()) {
         size_t lineEnd = raw.find('\n', pos);
@@ -267,6 +269,8 @@ void WebServ::storeCgiToken(Client &client) {
     std::string token = (end == std::string::npos) ? cookie.substr(pos) : cookie.substr(pos, end - pos);
     if (!token.empty())
         _tokens.push_back(token);
+	std::cout << "\033[95m[AUTH] Token stored: " << token << " (total: " << _tokens.size() << ")\033[0m" << std::endl;
+
 }
 
 void WebServ::buildCgiResponse(Client &client) {
@@ -335,6 +339,7 @@ void WebServ::startCgi(int client_fd) {
 
     std::string scriptPath = loc.getTargetPath();
     std::string interpreter = loc.getCgiPath();
+	std::cout << "\033[35m[CGI] Starting CGI for " << scriptPath << "\033[0m" << std::endl;
 
     struct stat st;
     if (stat(scriptPath.c_str(), &st) != 0) {
