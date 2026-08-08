@@ -7,8 +7,8 @@ CXXFLAGS = -Wall -Wextra -Werror -std=c++98 -g
 SRC = main.cpp \
 	parssing/configparssing.cpp \
 	parssing/location.cpp \
-	parssing/utils.cpp \
 	parssing/config.cpp \
+	src/redirectException.cpp \
 	src/webserv.cpp \
 	src/client.cpp \
 	src/server.cpp \
@@ -33,5 +33,7 @@ clean:
 fclean: clean
 	rm -f $(NAME)
 	rm -rf uploads
+clean_users:
+	rm -rf cgi/users.json
 
 re: fclean all

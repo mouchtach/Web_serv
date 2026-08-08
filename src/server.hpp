@@ -12,7 +12,5 @@ public:
     Server(const Config &config);
     Server &operator=(const Server &other);
 
-    const Config &getConfig() const {
-        return _config;
-    }
+    const Config &getConfig() const;
 };

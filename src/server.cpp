@@ -18,3 +18,6 @@ Server &Server::operator=(const Server &other) {
     return *this;
 }
 
+const Config &Server::getConfig() const {
+    return _config;
+}

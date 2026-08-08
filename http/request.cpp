@@ -1,5 +1,5 @@
 #include "request.hpp"
-#include "../parssing/utils.hpp"
+#include "../src/static_utils.hpp"
 #include <cstdlib>
 
 Request::Request() : _header_complete(false), _request_complete(false), has_content_length(false) {}

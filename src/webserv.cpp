@@ -1,6 +1,6 @@
 #include "webserv.hpp"
 #include "../parssing/configparssing.hpp"
-#include "../parssing/utils.hpp"
+#include "static_utils.hpp"
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <fcntl.h>
@@ -241,12 +241,18 @@ void WebServ::parseCgiOutput(const std::string &raw) {
         std::string key = line.substr(0, colon);
         std::string value = line.substr(colon + 1);
         size_t s = value.find_first_not_of(" \t");
-        value = (s == std::string::npos) ? "" : value.substr(s);
+		if (s == std::string::npos)
+			value = "";
+		else
+			value = value.substr(s);
 
         if (key == "Status") {
             _result.statusCode = std::atoi(value.c_str());
             size_t sp = value.find(' ');
-            _result.statusMsg = (sp != std::string::npos) ? value.substr(sp + 1) : "OK";
+			if (sp == std::string::npos)
+				_result.statusMsg = "OK";
+			else
+				_result.statusMsg = value.substr(sp + 1);
         } else {
             _result.headers[key] = value;
         }
@@ -266,7 +272,12 @@ void WebServ::storeCgiToken(Client &client) {
         return;
     pos += 6;
     size_t end = cookie.find(';', pos);
-    std::string token = (end == std::string::npos) ? cookie.substr(pos) : cookie.substr(pos, end - pos);
+	
+	std::string token;
+	if (end == std::string::npos)
+		token = cookie.substr(pos);
+	else
+		token = cookie.substr(pos, end - pos);
     if (!token.empty())
         _tokens.push_back(token);
 	std::cout << "\033[95m[AUTH] Token stored: " << token << " (total: " << _tokens.size() << ")\033[0m" << std::endl;

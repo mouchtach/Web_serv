@@ -1,5 +1,5 @@
 #include "location.hpp"
-#include "utils.hpp"
+#include "../src/static_utils.hpp"
 
 Location::Location() : rootOverridden(false), redc(false) {}
 Location::~Location() {}

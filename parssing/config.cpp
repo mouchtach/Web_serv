@@ -1,6 +1,6 @@
 #include "config.hpp"
 #include "location.hpp"
-#include "utils.hpp"
+#include "../src/static_utils.hpp"
 #include <cstdlib>
 #include <stdexcept>
 
