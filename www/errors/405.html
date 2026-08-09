@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>405 Method Not Allowed — webserv</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="error-page">
+  <div class="error-card">
+    <div class="error-icon">✕</div>
+    <div class="error-code warn">405</div>
+    <div class="error-status">Method Not Allowed</div>
+    <div class="error-msg">
+      <div class="prompt-line"><span>$</span> webserv --check-methods</div>
+      This HTTP method isn't allowed for the requested location. Check the
+      <code>methods</code> directive for this route in the server config.
+    </div>
+    <div class="error-actions">
+      <a href="/">← Back to home</a>
+    </div>
+  </div>
+</div>
+</body>
+</html>

@@ -138,14 +138,7 @@ void ConfigParssing::parseServer(size_t &i)
 		} else if (directive == "methods") {
 			if (i >= _tokens.size())
 				throw std::runtime_error("'methods' missing values");
-			std::vector<std::string> methods;
-			while (i < _tokens.size() && _tokens[i] != "}") {
-				std::string m = _tokens[i++];
-				methods.push_back(m);
-				if (!m.empty() && m[m.size() - 1] == ';')
-					break;
-			}
-			cfg.setMethods(methods);
+			cfg.setMethods(parseMethodsList(_tokens, i));
 		} else {
 			throw std::runtime_error("Unknown directive in server block: '" + directive + "'");
 		}

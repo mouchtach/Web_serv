@@ -1,4 +1,5 @@
 #include "response.hpp"
+#include "../src/static_utils.hpp"
 
 Response::Response()
     : _version("HTTP/1.0"), _statusCode(200), _statusMessage("OK"), _sentBytes(0) {
@@ -10,7 +11,6 @@ Response::~Response() {
 void Response::buildResponse() {
     _sentBytes = 0;
 
-    // always set Date / Server / Content-Length if not already present
     if (_headers.find("Date") == _headers.end())
         _headers["Date"] = getCurrentDate();
     if (_headers.find("Server") == _headers.end())
@@ -26,8 +26,16 @@ void Response::buildResponse() {
     _rawResponse += "\r\n" + _body;
 }
 
-void Response::sendError(int code, const std::string &message, const std::string &customBody) {
+void Response::sendError(int code, const std::string &customBody) {
+    std::string message = getStatusMessage(code);
     std::string body = customBody;
+
+    if (body.empty()) {
+        std::map<int, std::string>::const_iterator it = _errorPages.find(code);
+        if (it != _errorPages.end())
+            body = readFile(it->second);
+    }
+
     if (body.empty()) {
         body =
             "<!DOCTYPE html>\n<html>\n<head><title>" + intToStr(code) + " " + message +

@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>500 Internal Server Error — webserv</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="error-page">
+  <div class="error-card">
+    <div class="error-icon">!</div>
+    <div class="error-code err">500</div>
+    <div class="error-status">Internal Server Error</div>
+    <div class="error-msg">
+      <div class="prompt-line"><span>$</span> webserv --handle-request</div>
+      Something went wrong on the server while processing this request.
+      This is not your fault — try again in a moment.
+    </div>
+    <div class="error-actions">
+      <a href="/">← Back to home</a>
+    </div>
+  </div>
+</div>
+</body>
+</html>

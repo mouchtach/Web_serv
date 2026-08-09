@@ -62,6 +62,7 @@ public:
     void handleStaticPOST(const std::string &target);
     void handleStaticDELETE(const std::string &target);
     void sendFile(const std::string &filepath);
+    void sendErrorPage(int code); 
     void processAutoIndex(const std::string &uri, const std::string &target);
     void receiveBuffer(int fd);
     void matchLocation();

@@ -11,7 +11,12 @@
 
   <div class="topbar">
     <span>webserv/1.0</span>
-    <span class="status-pill"><span class="dot"></span>server listening</span>
+    <span style="display:flex; align-items:center; gap:10px;">
+      <!-- styled pill button; text/class get swapped between "log in" / "log out"
+           by the script below, depending on whether you're authenticated -->
+      <a href="/login.html" id="auth-link" class="auth-btn">log in</a>
+      <span class="status-pill"><span class="dot"></span>server listening</span>
+    </span>
   </div>
 
   <!-- ============ HEADER ============ -->
@@ -118,7 +123,7 @@
     </div>
     <div class="panel">
       <div class="panel-header"><span class="dot live"></span>local session log</div>
-      <div class="panel-body" id="live-log">
+      <div class="panel-body" id="live-log" aria-live="polite">
         <div class="log-empty">waiting for activity…</div>
       </div>
     </div>
@@ -132,6 +137,67 @@
 </div>
 
 <script>
+/* =======================================================================
+   AUTHENTICATION STATE
+   -----------------------------------------------------------------------
+   Routes like /upload and /cgi require a login token (a cookie set by
+   cgi/login.py). If you're not logged in, the C++ server responds with
+   a 302 redirect to /login.html instead of the real content.
+
+   The browser's fetch() function FOLLOWS redirects automatically by
+   default — so without checking for this, our code would silently
+   receive the login PAGE's html and try to treat it as if it were a
+   file list or CGI output. That's a bug we fix everywhere below by
+   checking `res.redirected` after every fetch() call that hits a
+   protected route.
+   ========================================================================*/
+
+const authLink = document.getElementById('auth-link');
+
+// Reads a cookie by name from document.cookie (plain string parsing —
+// no library needed). Returns null if the cookie isn't present.
+function getCookie(name) {
+  const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
+  return match ? match[2] : null;
+}
+
+// Clears the token cookie client-side. This works because login.py sets
+// the cookie WITHOUT the "HttpOnly" flag, so JavaScript is allowed to
+// read and overwrite it. Setting Max-Age=0 tells the browser to delete
+// the cookie immediately.
+function clearToken() {
+  document.cookie = 'token=; Path=/; Max-Age=0';
+}
+
+// Updates the topbar button's text, link target, and color depending on
+// whether we currently hold a token cookie. This is just a best-guess
+// UI hint — the real authentication check always happens server-side.
+function updateAuthLink() {
+  const hasToken = !!getCookie('token');
+  if (hasToken) {
+    authLink.textContent = 'log out';
+    authLink.href = '#';
+    authLink.classList.add('logout');
+  } else {
+    authLink.textContent = 'log in';
+    authLink.href = '/login.html';
+    authLink.classList.remove('logout');
+  }
+}
+
+authLink.addEventListener('click', (e) => {
+  // Only intercept the click when we're acting as a "log out" button.
+  // When it's a real "log in" link (href="/login.html"), let the
+  // browser navigate normally.
+  if (authLink.classList.contains('logout')) {
+    e.preventDefault();
+    clearToken();
+    window.location.href = '/login.html'; // send the browser to the login page
+  }
+});
+
+updateAuthLink();
+
 /* ---------------------------------------------------------------------
    request history log
    --------------------------------------------------------------------*/
@@ -168,16 +234,19 @@ const statusMsg  = document.getElementById('status-msg');
 const statusCode = document.getElementById('status-code');
 const statusText = document.getElementById('status-text');
 
-// action: 'upload' | 'delete' | 'list' — tailors the wording per action
+// action: 'upload' | 'delete' | 'list' | 'cgi' — tailors the wording per action
 function describeStatus(status, action) {
-  const subject = { upload: 'upload', delete: 'file', list: 'listing' }[action] || 'request';
+  const subject = { upload: 'upload', delete: 'file', list: 'listing', cgi: 'script' }[action] || 'request';
   switch (true) {
     case status >= 200 && status < 300:
       return { cls: 'ok', text: {
         upload: 'File uploaded successfully.',
         delete: 'File deleted successfully.',
-        list:   'Listing loaded successfully.'
+        list:   'Listing loaded successfully.',
+        cgi:    'Script executed successfully.'
       }[action] || 'Success.' };
+    case status === 401:
+      return { cls: 'forbidden', text: `Not logged in — log in to access this ${subject}.` };
     case status === 403:
       return { cls: 'forbidden', text: `Forbidden — no permission to ${action === 'delete' ? 'delete' : action === 'upload' ? 'write to' : 'read'} this ${subject}.` };
     case status === 404:
@@ -245,8 +314,16 @@ uploadBtn.addEventListener('click', async () => {
   uploadBtn.textContent = 'Uploading…';
   try {
     const res = await fetch('/upload', { method: 'POST', body: fd });
-    showStatus(res.status, 'upload');
-    logRequest('POST', '/upload', res.status, res.ok ? 'saved ' + file.name : 'upload rejected');
+    // /upload requires a login token. If we're not logged in, the server
+    // sends a 302 redirect to /login.html and fetch() follows it silently
+    // — so we check res.redirected FIRST, before trusting res.ok/res.status.
+    if (res.redirected) {
+      showStatus(401, 'upload');
+      logRequest('POST', '/upload', 401, 'not logged in');
+    } else {
+      showStatus(res.status, 'upload');
+      logRequest('POST', '/upload', res.status, res.ok ? 'saved ' + file.name : 'upload rejected');
+    }
   } catch (err) {
     showStatus(0, 'upload');
     logRequest('POST', '/upload', 0, err.message);
@@ -261,7 +338,13 @@ async function refreshFiles() {
   fileListEl.innerHTML = '<div class="empty-hint">loading…</div>';
   try {
     const res = await fetch('/upload/');
-    // const res = await fetch('/cgi/run_c.py');
+    // Same redirect check as above: /upload/ requires login too.
+    if (res.redirected) {
+      fileListEl.innerHTML = '<div class="empty-hint">log in to view uploaded files</div>';
+      showStatus(401, 'list');
+      logRequest('GET', '/upload/', 401, 'not logged in');
+      return;
+    }
     const html = await res.text();
     const doc = new DOMParser().parseFromString(html, 'text/html');
     const anchors = Array.from(doc.querySelectorAll('a'));
@@ -323,8 +406,13 @@ async function deleteFile(name) {
   const path = '/upload/' + encodeURIComponent(name);
   try {
     const res = await fetch(path, { method: 'DELETE' });
-    showStatus(res.status, 'delete');
-    logRequest('DELETE', path, res.status, res.ok ? 'removed' : 'delete failed');
+    if (res.redirected) {
+      showStatus(401, 'delete');
+      logRequest('DELETE', path, 401, 'not logged in');
+    } else {
+      showStatus(res.status, 'delete');
+      logRequest('DELETE', path, res.status, res.ok ? 'removed' : 'delete failed');
+    }
   } catch (err) {
     showStatus(0, 'delete');
     logRequest('DELETE', path, 0, err.message);
@@ -345,9 +433,16 @@ cgiBtn.addEventListener('click', async () => {
   cgiOut.textContent = 'running…';
   try {
     const res = await fetch('/cgi/run_c.py');
-    const text = await res.text();
-    cgiOut.textContent = text || '(empty output)';
-    logRequest('GET', '/cgi/run_c.py', res.status, res.ok ? 'script executed' : 'cgi failed');
+    // /cgi also requires login — same redirect check as the routes above.
+    if (res.redirected) {
+      cgiOut.textContent = 'log in to run this script';
+      showStatus(401, 'cgi');
+      logRequest('GET', '/cgi/run_c.py', 401, 'not logged in');
+    } else {
+      const text = await res.text();
+      cgiOut.textContent = text || '(empty output)';
+      logRequest('GET', '/cgi/run_c.py', res.status, res.ok ? 'script executed' : 'cgi failed');
+    }
   } catch (err) {
     cgiOut.textContent = 'could not reach /cgi/run_c.py\n' + err.message;
     logRequest('GET', '/cgi/run_c.py', 0, err.message);

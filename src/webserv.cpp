@@ -208,7 +208,7 @@ void WebServ::cgiReadOutput(int fd) {
         client->appendCgiOutput(buf, n);
         return;
     }
-    closeFd(fd);   // n == 0 (EOF) or n < 0 (error) — CGI is done sending either way
+    closeFd(fd);
     int status;
     waitpid(client->getCgiPid(), &status, 0);
     finalizeCgiResponse(*client);
@@ -220,14 +220,14 @@ void WebServ::cgiReadOutput(int fd) {
 void WebServ::parseCgiOutput(const std::string &raw) {
 	_result.statusCode = 200;
     _result.statusMsg = "OK";
-    _result.headers.clear();   // must clear — map from the PREVIOUS request would leak in otherwise
+    _result.headers.clear();
     _result.body.clear();
     size_t pos = 0;
-	std::cout << "\033[35m[CGI] Response: " << _result.statusCode << " " << _result.statusMsg << "\033[0m" << std::endl;
 
     while (pos < raw.size()) {
         size_t lineEnd = raw.find('\n', pos);
-        if (lineEnd == std::string::npos) break;
+        if (lineEnd == std::string::npos) 
+            break;
         std::string line = raw.substr(pos, lineEnd - pos);
         pos = lineEnd + 1;
         if (!line.empty() && line[line.size() - 1] == '\r')
@@ -245,7 +245,6 @@ void WebServ::parseCgiOutput(const std::string &raw) {
 			value = "";
 		else
 			value = value.substr(s);
-
         if (key == "Status") {
             _result.statusCode = std::atoi(value.c_str());
             size_t sp = value.find(' ');
@@ -258,6 +257,7 @@ void WebServ::parseCgiOutput(const std::string &raw) {
         }
     }
     _result.body = raw.substr(pos);
+	std::cout << "\033[35m[CGI] Response: " << _result.statusCode << " " << _result.statusMsg << "\033[0m" << std::endl;
 }
 
 void WebServ::storeCgiToken(Client &client) {
@@ -281,7 +281,6 @@ void WebServ::storeCgiToken(Client &client) {
     if (!token.empty())
         _tokens.push_back(token);
 	std::cout << "\033[95m[AUTH] Token stored: " << token << " (total: " << _tokens.size() << ")\033[0m" << std::endl;
-
 }
 
 void WebServ::buildCgiResponse(Client &client) {
@@ -319,7 +318,16 @@ void WebServ::readFromClient(int fd)
         return;
     }
     request.appendData(buffer, n);
-    request.parse();
+    try
+    {
+        request.parse();
+    }
+    catch (const HttpException &e)
+    {
+        client.getResponse().sendError(e.getStatusCode());
+        changePollToWrite(fd);
+        return;
+    }
     if (!request.isRequestComplete())
         return;
     handleRequest(fd);
@@ -354,7 +362,7 @@ void WebServ::startCgi(int client_fd) {
 
     struct stat st;
     if (stat(scriptPath.c_str(), &st) != 0) {
-        client.getResponse().sendError(404, "Not Found");
+        client.getResponse().sendError(404);
         changePollToWrite(client_fd);
         return;
     }
@@ -362,7 +370,7 @@ void WebServ::startCgi(int client_fd) {
     int inPipe[2];
     int outPipe[2];
     if (pipe(inPipe) < 0 || pipe(outPipe) < 0) {
-        client.getResponse().sendError(500, "Internal Server Error");
+        client.getResponse().sendError(500);
         changePollToWrite(client_fd);
         return;
     }
@@ -371,7 +379,7 @@ void WebServ::startCgi(int client_fd) {
     if (pid < 0) {
         close(inPipe[0]); close(inPipe[1]);
         close(outPipe[0]); close(outPipe[1]);
-        client.getResponse().sendError(500, "Internal Server Error");
+        client.getResponse().sendError(500);
         changePollToWrite(client_fd);
         return;
     }
@@ -436,6 +444,13 @@ void WebServ::handleRequest(int fd) {
 	}
     if (!client.isMethodeAllowed())
         throw HttpException(405, "Method Not Allowed");
+
+    if (client.getMatchedLocation().isRedc()) {
+        const std::pair<int, std::string> &ret = client.getMatchedLocation().getReturn();
+        client.redirect(ret.first, ret.second);
+        changePollToWrite(fd);
+        return;
+    }
 
     std::string path = client.getMatchedLocation().getPath();
     if (path == "/signup" || path == "/login" || path == "/cgi") {

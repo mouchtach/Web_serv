@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>403 Forbidden — webserv</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="error-page">
+  <div class="error-card">
+    <div class="error-icon">✕</div>
+    <div class="error-code err">403</div>
+    <div class="error-status">Forbidden</div>
+    <div class="error-msg">
+      <div class="prompt-line"><span>$</span> webserv --check-access</div>
+      You don't have permission to access this resource. This can happen if
+      autoindex is disabled, the path is outside the allowed root, or the
+      location requires authentication.
+    </div>
+    <div class="error-actions">
+      <a href="/">← Back to home</a>
+    </div>
+  </div>
+</div>
+</body>
+</html>

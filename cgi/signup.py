@@ -1,20 +1,6 @@
 #!/usr/bin/env python3
 import sys, os, json, secrets
-
-USERS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "users.json")
-
-def load_users():
-    if not os.path.exists(USERS_FILE):
-        return {}
-    with open(USERS_FILE, "r") as f:
-        try:
-            return json.load(f)
-        except ValueError:
-            return {}
-
-def save_users(users):
-    with open(USERS_FILE, "w") as f:
-        json.dump(users, f)
+from users_store import load_users, save_users
 
 def respond(status_line, body_dict):
     print("Status: %s\r\nContent-Type: application/json\r\n" % status_line)

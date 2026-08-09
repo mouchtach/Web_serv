@@ -144,3 +144,33 @@ std::string takeBodyContent(const std::string &body, const std::string &boundary
         return "";
     return body.substr(start, end - start);
 }
+
+std::string getStatusMessage(int code) {
+    switch (code) {
+        case 200: return "OK";
+        case 301: return "Moved Permanently";
+        case 302: return "Found";
+        case 303: return "See Other";       // in case a config 'return' uses it
+        case 307: return "Temporary Redirect";
+        case 308: return "Permanent Redirect";
+        case 400: return "Bad Request";
+        case 403: return "Forbidden";
+        case 404: return "Not Found";
+        case 405: return "Method Not Allowed";
+        case 413: return "Payload Too Large";
+        case 500: return "Internal Server Error";
+        case 501: return "Not Implemented";
+        default:  return "Unknown Status";
+    }
+}
+
+std::vector<std::string> parseMethodsList(const std::vector<std::string> &tokens, size_t &i) {
+    std::vector<std::string> methods;
+    while (i < tokens.size() && tokens[i] != "}") {
+        std::string m = tokens[i++];
+        methods.push_back(m);
+        if (!m.empty() && m[m.size() - 1] == ';')
+            break;
+    }
+    return methods;
+}

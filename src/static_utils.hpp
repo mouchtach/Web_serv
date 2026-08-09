@@ -14,3 +14,5 @@ bool isPathSafe(const std::string &uri);
 std::string buildAutoIndex(const std::string &dirPath, const std::string &uri);
 std::string getBoundary(const std::string &contentType);
 std::string takeBodyContent(const std::string &body, const std::string &boundary);
+std::string getStatusMessage(int code);
+std::vector<std::string> parseMethodsList(const std::vector<std::string> &tokens, size_t &i);

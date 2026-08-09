@@ -12,11 +12,15 @@ Client::Client() {}
 
 Client::~Client() {}
 
+// Client::Client(const Config &config, std::vector<std::string> *tokens, int fd)
+//     : _config(config), _tokens(tokens), _fd(fd) {
+//     _request.set_max_body_size(_config.getClientMaxBodySize());
+// }
 Client::Client(const Config &config, std::vector<std::string> *tokens, int fd)
     : _config(config), _tokens(tokens), _fd(fd) {
     _request.set_max_body_size(_config.getClientMaxBodySize());
+    _response.setErrorPages(_config.getErrorPages());
 }
-
 
 Client::Client(const Client &other)
     : _config(other._config), _request(other._request), _response(other._response),
@@ -89,7 +93,7 @@ void Client::receiveBuffer(int client_fd) {
 void Client::sendFile(const std::string &filepath) {
     std::string content = readFile(filepath);
     if (content.empty()) {
-        _response.sendError(404, "Not Found");
+        _response.sendError(404);
         return;
     }
     _response.setVersion(_request.getVersion());
@@ -102,7 +106,7 @@ void Client::sendFile(const std::string &filepath) {
 void Client::redirect(int code, const std::string &newLocation) {
     std::cout << "\033[33m[REDIR] -> " << newLocation << " (" << code << ")\033[0m" << std::endl;
     _response.setVersion(_request.getVersion());
-    _response.setStatusCode(code, "Moved Permanently");
+    _response.setStatusCode(code, getStatusMessage(code));
     _response.setHeader("Location", newLocation);
     _response.setHeader("Content-Length", "0");
     _response.buildResponse();
@@ -111,7 +115,7 @@ void Client::redirect(int code, const std::string &newLocation) {
 void Client::processAutoIndex(const std::string &uri, const std::string &target) {
     std::string html = buildAutoIndex(target, uri);
     if (html.empty()) {
-        _response.sendError(403, "Forbidden");
+        _response.sendError(403);
         return;
     }
     _response.setVersion(_request.getVersion());
@@ -124,7 +128,7 @@ void Client::processAutoIndex(const std::string &uri, const std::string &target)
 void Client::handleStaticGET(const std::string &target, const std::string &uri) {
     struct stat st;
     if (stat(target.c_str(), &st) == -1) {
-        _response.sendError(404, "Not Found");
+        _response.sendError(404);
         std::cout << "\033[32m[GET]    " << uri << " -> 404\033[0m" << std::endl;
         return;
     }
@@ -151,11 +155,11 @@ void Client::handleStaticGET(const std::string &target, const std::string &uri) 
             std::cout << "\033[32m[GET]    " << uri << " -> " << _response.getStatusCode() << "\033[0m" << std::endl;
             return;
         }
-        _response.sendError(403, "Forbidden");
+        _response.sendError(403);
         std::cout << "\033[32m[GET]    " << uri << " -> 403\033[0m" << std::endl;
         return;
     }
-    _response.sendError(403, "Forbidden");
+    _response.sendError(403);
     std::cout << "\033[32m[GET]    " << uri << " -> 403\033[0m" << std::endl;
 }
 
@@ -163,7 +167,7 @@ void Client::handleStaticPOST(const std::string &target) {
     std::string filename = takenamefile(_request.getBody());
     std::ofstream out((target+ "/" + filename).c_str(), std::ios::binary);
     if (!out) {
-        _response.sendError(500, "Internal Server Error");
+        _response.sendError(500);
         std::cout << "\033[33m[POST]   " << target << " -> 500\033[0m" << std::endl;
         return;
     }
@@ -182,12 +186,12 @@ void Client::handleStaticDELETE(const std::string &target) {
     std::cout << "\033[31m[DELETE] " << target << " -> " << _response.getStatusCode() << "\033[0m" << std::endl;
     struct stat st;
     if (stat(target.c_str(), &st) == -1) {
-        _response.sendError(404, "Not Found");
+        _response.sendError(404);
         std::cout << "\033[31m[DELETE] " << target << " -> 404\033[0m" << std::endl;
         return;
     }
     if (remove(target.c_str()) != 0) {
-        _response.sendError(500, "Internal Server Error");
+        _response.sendError(500);
         std::cout << "\033[31m[DELETE] " << target << " -> 500\033[0m" << std::endl;
         return;
     }
@@ -203,7 +207,7 @@ void Client::handleStaticDELETE(const std::string &target) {
 void Client::processStatic() {
     const std::string &uri = _request.getUri();
     if (!isPathSafe(uri)) {
-        _response.sendError(403, "Forbidden");
+        _response.sendError(403);
         return;
     }
 
@@ -225,7 +229,7 @@ void Client::processStatic() {
     else if (_request.getMethod() == "DELETE")
         handleStaticDELETE(target);
     else
-        _response.sendError(501, "Not Implemented");
+        _response.sendError(501);
 }
 
 void Client::matchLocation()
@@ -325,4 +329,18 @@ bool Client::validateToken(std::string token) {
             return true;
     }
     return false;
+}
+
+
+void Client::sendErrorPage(int code) {
+    const std::map<int, std::string> &errorPages = _config.getErrorPages();
+    std::map<int, std::string>::const_iterator it = errorPages.find(code);
+    if (it != errorPages.end()) {
+        std::string content = readFile(it->second);
+        if (!content.empty()) {
+            _response.sendError(code, content);
+            return;
+        }
+    }
+    _response.sendError(code);
 }

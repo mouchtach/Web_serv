@@ -53,15 +53,7 @@ void Location::overrideLocation(const std::vector<std::string> &tokens, size_t &
     } else if (directive == "methods") {
       if (i >= tokens.size())
         throw std::runtime_error("location '" + _path + "': 'methods' missing values");
-      std::vector<std::string> listmethods;
-      while (i < tokens.size() && tokens[i] != "}") 
-	  {
-		std::string m = tokens[i++];
-		listmethods.push_back(m);
-		if (!m.empty() && m[m.size() - 1] == ';')
-		  break;
-      }
-      setMethods(listmethods);
+      setMethods(parseMethodsList(tokens, i));
     } else if (directive == "cgi_extension") {
       if (i >= tokens.size())
         throw std::runtime_error("location '" + _path + "': 'cgi_extension' missing value");
@@ -76,6 +68,9 @@ void Location::overrideLocation(const std::vector<std::string> &tokens, size_t &
       }
       std::pair<int, std::string> ret;
       ret.first = strToInt(tokens[i++]);
+      if (ret.first < 300 || ret.first > 308) {
+        throw std::runtime_error("location '" + _path + "': 'return' code must be a redirect status (300-308), got " + intToStr(ret.first));
+      }
       if (i >= tokens.size()) {
         throw std::runtime_error("location '" + _path + "': 'return' missing URL");
       }
@@ -85,6 +80,7 @@ void Location::overrideLocation(const std::vector<std::string> &tokens, size_t &
         throw std::runtime_error("location '" + _path + "': 'return' URL is empty");
       }
       setReturn(ret);
+      setRedc(true);
     } else {
       throw std::runtime_error("location '" + _path + "': Unknown directive '" + directive + "'");
     }

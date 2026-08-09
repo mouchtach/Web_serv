@@ -12,8 +12,9 @@ void Request::setMethod(const std::string &method) {
         throw HttpException(400, "bad request");
     _method = method;
 }
+
 void Request::setUri(const std::string &uri) {
-    // uri ndirectory traversal  throw exception if uri contains ".."
+
     if (uri.find("..") != std::string::npos)
         throw HttpException(403, "not allowed");
     if (uri.empty())

@@ -68,9 +68,8 @@ public:
     void removeCgiFd(int fd);
     void changePollToWrite(int fd);
     FD_type getFDType(int fd);
-    // void displayConfigs() const;
     void removeClient(int fd);
-    void startCgi(int client_fd);          // called from handleRequest
+    void startCgi(int client_fd);
     std::vector<std::string> buildCgiEnv(Client &client, const std::string &scriptPath);
     void finalizeCgiResponse(Client &client);
     void loadTokens(const std::string &filename);

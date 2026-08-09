@@ -4,6 +4,7 @@
 #include <sstream>
 #include <ctime>
 
+
 class Response {
 private:
     std::string _version;
@@ -13,12 +14,7 @@ private:
     std::map<std::string, std::string> _headers;
     std::string _rawResponse;
     size_t      _sentBytes;
-
-    std::string intToStr(int n) const {
-        std::ostringstream ss;
-        ss << n;
-        return ss.str();
-    }
+    std::map<int, std::string> _errorPages; 
 
 public:
     Response();
@@ -33,13 +29,13 @@ public:
         _headers[key] = value;
     }
     void setBody(const std::string &body) { _body = body; }
+    void setErrorPages(const std::map<int, std::string> &errorPages) { _errorPages = errorPages; }   // <-- new
 
     void buildResponse();
 
     const std::string &getRawResponse() const { return _rawResponse; }
     int getStatusCode() const { return _statusCode; }
 
-    // send-loop bookkeeping (used by polloutprocess)
     void setSentBytes(size_t n) { _sentBytes = n; }
     size_t getSentBytes() const { return _sentBytes; }
     void addBytesSent(size_t n) { _sentBytes += n; }
@@ -54,7 +50,5 @@ public:
         return std::string(buffer);
     }
 
-    // generic fallback error page builder (used outside CGI too, e.g. 404/403/500)
-    void sendError(int code, const std::string &message, const std::string &customBody = "");
-    
+    void sendError(int code, const std::string &customBody = "");
 };

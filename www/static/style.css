@@ -575,3 +575,34 @@ tr:last-child td { border-bottom: none; }
   height: 1px;
   background: var(--border);
 }
+
+.auth-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 12px;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  background: var(--bg-panel);
+  cursor: pointer;
+  text-decoration: none;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+.auth-btn:hover {
+  border-color: var(--blue);
+  color: var(--blue);
+  text-decoration: none;
+}
+.auth-btn.logout {
+  color: var(--red);
+  border-color: rgba(248, 81, 73, 0.4);
+  background: rgba(248, 81, 73, 0.08);
+}
+.auth-btn.logout:hover {
+  border-color: var(--red);
+  background: rgba(248, 81, 73, 0.15);
+}
+ 
