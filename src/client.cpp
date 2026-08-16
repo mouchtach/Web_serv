@@ -8,16 +8,12 @@
 #include <sys/stat.h>
 #include <fstream>
 
-Client::Client() {}
+Client::Client() : _isCgi(false) {}
 
 Client::~Client() {}
 
-// Client::Client(const Config &config, std::vector<std::string> *tokens, int fd)
-//     : _config(config), _tokens(tokens), _fd(fd) {
-//     _request.set_max_body_size(_config.getClientMaxBodySize());
-// }
 Client::Client(const Config &config, std::vector<std::string> *tokens, int fd)
-    : _config(config), _tokens(tokens), _fd(fd) {
+    : _config(config), _tokens(tokens), _fd(fd), _isCgi(false) {
     _request.set_max_body_size(_config.getClientMaxBodySize());
     _response.setErrorPages(_config.getErrorPages());
 }
@@ -25,8 +21,8 @@ Client::Client(const Config &config, std::vector<std::string> *tokens, int fd)
 Client::Client(const Client &other)
     : _config(other._config), _request(other._request), _response(other._response),
       _matchedLocation(other._matchedLocation), _tokens(other._tokens), _fd(other._fd),
-      _cgiPid(other._cgiPid), _cgiOutFd(other._cgiOutFd), _cgiOutput(other._cgiOutput),
-      _cgiBody(other._cgiBody), _cgiBodySent(other._cgiBodySent) {}
+    _cgiPid(other._cgiPid), _cgiOutFd(other._cgiOutFd), _isCgi(other._isCgi),
+    _cgiOutput(other._cgiOutput), _cgiBody(other._cgiBody), _cgiBodySent(other._cgiBodySent) {}
 
 Client &Client::operator=(const Client &other) {
 	if (this != &other) {
@@ -41,6 +37,7 @@ Client &Client::operator=(const Client &other) {
 		_cgiOutput = other._cgiOutput;
 		_cgiBody = other._cgiBody;
 		_cgiBodySent = other._cgiBodySent;
+        _isCgi = other._isCgi;
 	}
 	return *this;
 }
@@ -240,8 +237,7 @@ void Client::matchLocation()
     const Location *bestMatch = NULL;
     size_t bestLength = 0;
 
-    for (std::vector<Location>::const_iterator it = locations.begin();
-        it != locations.end(); ++it)
+    for (std::vector<Location>::const_iterator it = locations.begin();it != locations.end(); ++it)
     {
         const std::string &locationPath = it->getPath();
 
@@ -269,24 +265,19 @@ void Client::matchLocation()
     if (bestMatch)
         _matchedLocation = *bestMatch;
 
-    const std::string &locPath = _matchedLocation.getPath();
-    if (locPath == "/signup" || locPath == "/login" || locPath == "/cgi")
-    {
-        std::string root = _matchedLocation.getRoot();
-        std::string scriptPath;
+    _isCgi = false;
+    if (!_matchedLocation.isCgiEnabled())
+        return;
 
-        if (locPath == "/signup")
-            scriptPath = appendPath(root, "/signup.py");
-        else if (locPath == "/login")
-            scriptPath = appendPath(root, "/login.py");
-        else 
-        {
-            scriptPath = appendPath(root, "/run_c.py");
-            // std::cout << "\033[33mCGI script path: " << scriptPath << "\033[0m" << std::endl;
-        }
+    std::string scriptPath;
+    if (_matchedLocation.resolveCgiScript(scriptPath))
+    {
+        _isCgi = true;
         _matchedLocation.setTargetPath(scriptPath);
     }
 }
+
+bool Client::isCgi() const { return _isCgi; }
 
 bool Client::isMethodeAllowed() {
     const std::vector<std::string> &allowedMethods = _matchedLocation.getMethods();
@@ -310,15 +301,13 @@ void Client::checkAccess() {
     if (locationPath == "/static") {
         return;
     }
-
     if (uri == "/login.html" || uri == "/signup.html" || locationPath == "/login" || locationPath == "/signup") {
         if (valid)
-            throw redirectException("/");
+            throw redirectException(302, "/");
         return;
     }
-
     if (!valid)
-        throw redirectException("/login.html");
+        throw redirectException(302, "/login.html");
 }
 
 bool Client::validateToken(std::string token) {

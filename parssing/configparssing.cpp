@@ -120,28 +120,29 @@ void ConfigParssing::parseServer(size_t &i)
 			std::string path = _tokens[i++];
 			cfg.addErrorPage(code, path);
 		} else if (directive == "location") {
-			if (i >= _tokens.size())
-				throw std::runtime_error("'location' missing path");
-			std::string path = _tokens[i++];
-			if (!path.empty() && path[path.size() - 1] == ';')
-				path = path.substr(0, path.size() - 1);
-			if (i >= _tokens.size() || _tokens[i] != "{")
-				throw std::runtime_error("Expected '{' after 'location " + path + "'");
-			++i;
-			Location loc(cfg);
+            if (i >= _tokens.size())
+                throw std::runtime_error("'location' missing path");
+            std::string path = _tokens[i++];
+            if (!path.empty() && path[path.size() - 1] == ';')
+                path = path.substr(0, path.size() - 1);
+            if (i >= _tokens.size() || _tokens[i] != "{")
+                throw std::runtime_error("Expected '{' after 'location " + path + "'");
+            ++i;
+            Location loc(cfg);
             loc.setPath(path);
-			loc.overrideLocation(_tokens, i);
-			if (i >= _tokens.size() || _tokens[i] != "}")
-				throw std::runtime_error("Expected '}' to close location block '" + path + "'");
-			++i;
-			cfg.addLocation(loc);
-		} else if (directive == "methods") {
-			if (i >= _tokens.size())
-				throw std::runtime_error("'methods' missing values");
-			cfg.setMethods(parseMethodsList(_tokens, i));
-		} else {
-			throw std::runtime_error("Unknown directive in server block: '" + directive + "'");
-		}
+            loc.overrideLocation(_tokens, i);
+            if (i >= _tokens.size() || _tokens[i] != "}")
+                throw std::runtime_error("Expected '}' to close location block '" + path + "'");
+            ++i;
+            if (!loc.getCgiExtension().empty())
+            {
+                if (loc.getCgiScript().empty())
+                    throw std::runtime_error("location '" + path + "': 'cgi_extension' is set but 'cgi_script' is missing — every CGI location must explicitly declare 'cgi_script'");
+                if (loc.getCgiPath().empty())
+                    throw std::runtime_error("location '" + path + "': 'cgi_extension' is set but 'cgi_path' is missing");
+            }
+            cfg.addLocation(loc);
+        }
 	}
 	if (cfg.getPort() == 0)
 		throw std::runtime_error("Server block is missing 'listen' directive");

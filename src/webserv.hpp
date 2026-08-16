@@ -40,14 +40,15 @@ private:
     std::vector<std::string> _tokens;
     CgiResult _result;
 
-    void parseCgiOutput(const std::string &raw);   // now void, writes into _result
+    void parseCgiOutput(const std::string &raw);
     void storeCgiToken(Client &client);
     void buildCgiResponse(Client &client);
+    WebServ(const WebServ &other);
+    WebServ &operator=(const WebServ &other);
+
 public:
     WebServ();
     ~WebServ();
-    WebServ(const WebServ &other);
-    WebServ &operator=(const WebServ &other);
     void start();
     void setup();
     // process
@@ -57,7 +58,7 @@ public:
     void polloutprocess(int fd);
     void parsing(const std::string &filename);
 
-    void cgiReadOutput(int fd);   // POLLIN on outPipe[0] — read CGI stdout
+    void cgiReadOutput(int fd); 
     void cgiWriteBody(int fd); 
     void handleRequest(int fd);
     void addinfo(int fd, FD_type type, void *obj);

@@ -3,7 +3,8 @@
 
 Location::Location() : rootOverridden(false), redc(false) {}
 Location::~Location() {}
-Location::Location(const Location &other) : Config(other), _path(other._path), _targetPath(other._targetPath), rootOverridden(other.rootOverridden), redc(other.redc), _return(other._return), _cgiExtension(other._cgiExtension), _cgiPath(other._cgiPath) {}
+Location::Location(const Location &other) : Config(other), _path(other._path), 
+        _targetPath(other._targetPath), rootOverridden(other.rootOverridden), redc(other.redc), _return(other._return), _cgiExtension(other._cgiExtension), _cgiPath(other._cgiPath), _cgiScript(other._cgiScript) {}
 Location::Location(const Config &other) : Config(other), rootOverridden(false), redc(false) {}
 
 Location &Location::operator=(const Location &other) {
@@ -16,6 +17,7 @@ Location &Location::operator=(const Location &other) {
         _return = other._return;
         _cgiExtension = other._cgiExtension;
         _cgiPath = other._cgiPath;
+        _cgiScript = other._cgiScript;
     }
     return *this;
 }
@@ -33,6 +35,8 @@ void Location::setCgiExtension(const std::string &cgiExtension) {_cgiExtension =
 const std::string &Location::getCgiExtension() const {return _cgiExtension;}
 void Location::setCgiPath(const std::string &cgiPath) {_cgiPath = stripSemicolon(cgiPath);}
 const std::string &Location::getCgiPath() const {return _cgiPath;}
+void Location::setCgiScript(const std::string &cgiScript) {_cgiScript = stripSemicolon(cgiScript);}   // NEW
+const std::string &Location::getCgiScript() const {return _cgiScript;}   // NEW
 
 void Location::overrideLocation(const std::vector<std::string> &tokens, size_t &i) {
   while (i < tokens.size() && tokens[i] != "}") {
@@ -62,6 +66,10 @@ void Location::overrideLocation(const std::vector<std::string> &tokens, size_t &
       if (i >= tokens.size())
         throw std::runtime_error("location '" + _path + "': 'cgi_path' missing value");
       setCgiPath(tokens[i++]);
+    } else if (directive == "cgi_script") {
+      if (i >= tokens.size())
+        throw std::runtime_error("location '" + _path + "': 'cgi_script' missing value");
+      setCgiScript(tokens[i++]);
     } else if (directive == "return") {
       if (i >= tokens.size()) {
         throw std::runtime_error("location '" + _path + "': 'return' missing value");
@@ -85,4 +93,17 @@ void Location::overrideLocation(const std::vector<std::string> &tokens, size_t &
       throw std::runtime_error("location '" + _path + "': Unknown directive '" + directive + "'");
     }
   }
+}
+
+bool Location::isCgiEnabled() const {
+    if (_cgiExtension.empty())
+        return false;
+    return true;
+}
+
+bool Location::resolveCgiScript(std::string &outScriptPath) const {
+    if (_cgiScript.empty())
+        return false;
+    outScriptPath = appendPath(getRoot(), _cgiScript);
+    return true;
 }

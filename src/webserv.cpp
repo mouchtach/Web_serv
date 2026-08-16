@@ -321,16 +321,17 @@ void WebServ::readFromClient(int fd)
     try
     {
         request.parse();
+        if (!request.isRequestComplete())
+            return;
+        handleRequest(fd);
     }
-    catch (const HttpException &e)
-    {
-        client.getResponse().sendError(e.getStatusCode());
+    catch (const redirectException &e) { 
+        client.redirect(e.getStatusCode(), e.getRedirectUrl()); 
         changePollToWrite(fd);
-        return;
+    } catch (const HttpException &e) { 
+        client.getResponse().sendError(e.getStatusCode()); 
+        changePollToWrite(fd); 
     }
-    if (!request.isRequestComplete())
-        return;
-    handleRequest(fd);
 }
 
 #include <sys/stat.h>
@@ -433,29 +434,18 @@ void WebServ::startCgi(int client_fd) {
 void WebServ::handleRequest(int fd) {
     Client &client = _clients[fd];
     client.matchLocation();
+    client.checkAccess();
 
-	try {
-    	client.checkAccess();
-	}
-	catch (const redirectException &e) {
-		client.redirect(302, e.getRedirectUrl());
-		changePollToWrite(fd);
-		return;
-	}
     if (!client.isMethodeAllowed())
         throw HttpException(405, "Method Not Allowed");
 
     if (client.getMatchedLocation().isRedc()) {
         const std::pair<int, std::string> &ret = client.getMatchedLocation().getReturn();
-        client.redirect(ret.first, ret.second);
-        changePollToWrite(fd);
-        return;
+        throw redirectException(ret.first, ret.second);
     }
-
-    std::string path = client.getMatchedLocation().getPath();
-    if (path == "/signup" || path == "/login" || path == "/cgi") {
+    if (client.isCgi()) {
         startCgi(fd);
-        return;       
+        return;
     }
     client.processStatic();
     changePollToWrite(fd);

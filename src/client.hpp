@@ -21,6 +21,7 @@ private:
     int _fd;
     pid_t _cgiPid;
     int   _cgiOutFd;
+    bool _isCgi;
     std::string _cgiOutput; 
     std::string _cgiBody;  
     size_t      _cgiBodySent;
@@ -44,7 +45,7 @@ public:
     int  getCgiOutFd() const;
     pid_t getCgiPid() const ;
     int  getFd() const ;
-
+    bool isCgi() const;   // NEW
 
 // Setters
 

@@ -12,6 +12,7 @@ private:
     std::pair<int , std::string> _return;
     std::string _cgiExtension;
     std::string _cgiPath;
+    std::string _cgiScript;
 
 public:
     Location();
@@ -28,7 +29,8 @@ public:
     void setReturn(const std::pair<int, std::string> &ret);
     void setCgiExtension(const std::string &cgiExtension);
     void setCgiPath(const std::string &cgiPath);
-    
+    void setCgiScript(const std::string &cgiScript);
+
     const std::string &getPath() const;
     const std::string &getTargetPath() const;
     bool isRootOverridden() const;
@@ -36,5 +38,8 @@ public:
     const std::pair<int, std::string> &getReturn() const;
     const std::string &getCgiExtension() const;
     const std::string &getCgiPath() const;
-};
+    const std::string &getCgiScript() const;
 
+    bool isCgiEnabled() const;
+    bool resolveCgiScript(std::string &outScriptPath) const;   // CHANGED: no more requestUri param
+};
