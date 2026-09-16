@@ -5,6 +5,10 @@
 #include <netinet/in.h>
 #include <fcntl.h>
 #include <iostream>
+#include <signal.h>
+#include <ctime>
+
+static const long long CGI_TIMEOUT_SECONDS = 5;
 
 
 WebServ::WebServ() {
@@ -189,11 +193,13 @@ void WebServ::cgiWriteBody(int fd) {
 
     if (sent >= body.size()) {
         closeFd(fd);
+        client->setCgiInFd(-1);
         return;
     }
     ssize_t n = write(fd, body.c_str() + sent, body.size() - sent);
     if (n < 0) {
         closeFd(fd);
+        client->setCgiInFd(-1);
         return;
     }
     client->addCgiBodySent(n);
@@ -210,7 +216,13 @@ void WebServ::cgiReadOutput(int fd) {
     }
     closeFd(fd);
     int status;
-    waitpid(client->getCgiPid(), &status, 0);
+    pid_t waited = waitpid(client->getCgiPid(), &status, WNOHANG);
+    if (waited == 0) {
+        kill(client->getCgiPid(), SIGKILL);
+        waitpid(client->getCgiPid(), &status, 0);
+    }
+    client->setCgiDeadline(0);
+    client->setCgiOutFd(-1);
     finalizeCgiResponse(*client);
     changePollToWrite(client->getFd());
 }
@@ -413,7 +425,9 @@ void WebServ::startCgi(int client_fd) {
     fcntl(outPipe[0], F_SETFL, O_NONBLOCK);
 
     client.setCgiPid(pid);
+    client.setCgiInFd(-1);
     client.setCgiOutFd(outPipe[0]);
+    client.setCgiDeadline(currentTimeSeconds() + CGI_TIMEOUT_SECONDS);
     client.setCgiBody(client.getRequest().getBody());
     client.setFd(client_fd);
 
@@ -423,8 +437,57 @@ void WebServ::startCgi(int client_fd) {
     if (client.getCgiBody().empty()) {
         close(inPipe[1]);
     } else {
+        client.setCgiInFd(inPipe[1]);
         addinfo(inPipe[1], CGI_IN, &client);
         addpollfd(inPipe[1], POLLOUT);
+    }
+}
+
+long long WebServ::currentTimeSeconds() const {
+    return static_cast<long long>(std::time(NULL));
+}
+
+int WebServ::pollTimeout() const {
+    long long nearest = -1;
+    long long now = currentTimeSeconds();
+    for (std::map<int, Client>::const_iterator it = _clients.begin(); it != _clients.end(); ++it) {
+        long long deadline = it->second.getCgiDeadline();
+        if (deadline == 0)
+            continue;
+        long long remaining = deadline - now;
+        if (remaining < 0)
+            remaining = 0;
+        if (nearest == -1 || remaining < nearest)
+            nearest = remaining;
+    }
+    if (nearest < 0)
+        return -1;
+    return static_cast<int>(nearest * 1000);
+}
+
+void WebServ::timeoutCgi(Client &client) {
+    if (client.getCgiPid() > 0) {
+        kill(client.getCgiPid(), SIGKILL);
+        waitpid(client.getCgiPid(), NULL, 0);
+    }
+    if (client.getCgiInFd() >= 0) {
+        closeFd(client.getCgiInFd());
+        client.setCgiInFd(-1);
+    }
+    if (client.getCgiOutFd() >= 0) {
+        closeFd(client.getCgiOutFd());
+        client.setCgiOutFd(-1);
+    }
+    client.setCgiDeadline(0);
+    client.getResponse().sendError(504);
+    changePollToWrite(client.getFd());
+}
+
+void WebServ::handleCgiTimeouts() {
+    long long now = currentTimeSeconds();
+    for (std::map<int, Client>::iterator it = _clients.begin(); it != _clients.end(); ++it) {
+        if (it->second.getCgiDeadline() != 0 && it->second.getCgiDeadline() <= now)
+            timeoutCgi(it->second);
     }
 }
 
@@ -454,7 +517,7 @@ void WebServ::handleRequest(int fd) {
 void WebServ::start() {
 
 	while (true) {
-		int ret = poll(_pollfds.data(), _pollfds.size(), -1);
+        int ret = poll(_pollfds.data(), _pollfds.size(), pollTimeout());
 		if (ret < 0) {
 			throw std::runtime_error("Poll failed");
 		}
@@ -474,6 +537,7 @@ void WebServ::start() {
 			}  
 			
 		}
+        handleCgiTimeouts();
 	}
 }
 

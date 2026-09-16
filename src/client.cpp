@@ -8,12 +8,13 @@
 #include <sys/stat.h>
 #include <fstream>
 
-Client::Client() : _isCgi(false) {}
+Client::Client() : _fd(-1), _cgiPid(-1), _cgiInFd(-1), _cgiOutFd(-1), _cgiDeadline(0), _isCgi(false) {}
 
 Client::~Client() {}
 
 Client::Client(const Config &config, std::vector<std::string> *tokens, int fd)
-    : _config(config), _tokens(tokens), _fd(fd), _isCgi(false) {
+        : _config(config), _tokens(tokens), _fd(fd), _cgiPid(-1), _cgiInFd(-1),
+            _cgiOutFd(-1), _cgiDeadline(0), _isCgi(false) {
     _request.set_max_body_size(_config.getClientMaxBodySize());
     _response.setErrorPages(_config.getErrorPages());
 }
@@ -21,7 +22,8 @@ Client::Client(const Config &config, std::vector<std::string> *tokens, int fd)
 Client::Client(const Client &other)
     : _config(other._config), _request(other._request), _response(other._response),
       _matchedLocation(other._matchedLocation), _tokens(other._tokens), _fd(other._fd),
-    _cgiPid(other._cgiPid), _cgiOutFd(other._cgiOutFd), _isCgi(other._isCgi),
+    _cgiPid(other._cgiPid), _cgiInFd(other._cgiInFd), _cgiOutFd(other._cgiOutFd),
+    _cgiDeadline(other._cgiDeadline), _isCgi(other._isCgi),
     _cgiOutput(other._cgiOutput), _cgiBody(other._cgiBody), _cgiBodySent(other._cgiBodySent) {}
 
 Client &Client::operator=(const Client &other) {
@@ -33,7 +35,9 @@ Client &Client::operator=(const Client &other) {
 		_tokens = other._tokens;
 		_fd = other._fd;
 		_cgiPid = other._cgiPid;
+        _cgiInFd = other._cgiInFd;
 		_cgiOutFd = other._cgiOutFd;
+        _cgiDeadline = other._cgiDeadline;
 		_cgiOutput = other._cgiOutput;
 		_cgiBody = other._cgiBody;
 		_cgiBodySent = other._cgiBodySent;
@@ -55,6 +59,8 @@ size_t Client::getCgiBodySent() const { return _cgiBodySent; }
 int Client::getFd() const { return _fd; }
 pid_t Client::getCgiPid() const { return _cgiPid; }
 int Client::getCgiOutFd() const { return _cgiOutFd; }
+int Client::getCgiInFd() const { return _cgiInFd; }
+long long Client::getCgiDeadline() const { return _cgiDeadline; }
 
 
 // Setters
@@ -65,7 +71,9 @@ void Client::setCgiBody(const std::string &body) {
 }
 void Client::setFd(int fd) { _fd = fd; }
 void Client::setCgiPid(pid_t p) { _cgiPid = p; }
+void Client::setCgiInFd(int fd) { _cgiInFd = fd; }
 void Client::setCgiOutFd(int fd) { _cgiOutFd = fd; }
+void Client::setCgiDeadline(long long deadline) { _cgiDeadline = deadline; }
 
 
 // CGI methods
@@ -306,8 +314,21 @@ void Client::checkAccess() {
             throw redirectException(302, "/");
         return;
     }
-    if (!valid)
+    if (!valid) {
+        if (!_matchedLocation.isRedc() && !_isCgi) {
+            std::string suffix;
+            if (uri.compare(0, locationPath.length(), locationPath) == 0)
+                suffix = uri.substr(locationPath.length());
+            else
+                suffix = uri;
+
+            std::string target = appendPath(_matchedLocation.getRoot(), suffix);
+            struct stat st;
+            if (stat(target.c_str(), &st) != 0)
+                throw HttpException(404, "Not Found");
+        }
         throw redirectException(302, "/login.html");
+    }
 }
 
 bool Client::validateToken(std::string token) {

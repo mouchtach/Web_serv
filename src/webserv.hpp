@@ -32,6 +32,7 @@ struct CgiResult {
 
 class WebServ {
 private:
+    
     std::vector<Config> _configs;
     std::vector<pollfd> _pollfds;
     std::map<int , Server> _servers;
@@ -74,4 +75,8 @@ public:
     std::vector<std::string> buildCgiEnv(Client &client, const std::string &scriptPath);
     void finalizeCgiResponse(Client &client);
     void loadTokens(const std::string &filename);
+    long long currentTimeSeconds() const;
+    int pollTimeout() const;
+    void handleCgiTimeouts();
+    void timeoutCgi(Client &client);
 };

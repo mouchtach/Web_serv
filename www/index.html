@@ -203,6 +203,7 @@ updateAuthLink();
    --------------------------------------------------------------------*/
 const logPanel = document.getElementById('live-log');
 let logCount = 0;
+const logStorageKey = 'webserv-request-log';
 
 function statusClass(status) {
   if (status === 0) return 'err';
@@ -211,10 +212,15 @@ function statusClass(status) {
   return 'warn';
 }
 
-function logRequest(method, path, status, note) {
+function logRequest(method, path, status, note, persist = true) {
   if (logCount === 0) logPanel.innerHTML = '';
   logCount++;
   const time = new Date().toLocaleTimeString('en-GB', { hour12: false });
+  if (persist) {
+    const savedLogs = JSON.parse(localStorage.getItem(logStorageKey) || '[]');
+    savedLogs.unshift({ time, method, path, status, note: note || '' });
+    localStorage.setItem(logStorageKey, JSON.stringify(savedLogs.slice(0, 14)));
+  }
   const row = document.createElement('div');
   row.className = 'log-line';
   row.innerHTML =
@@ -225,6 +231,11 @@ function logRequest(method, path, status, note) {
     '<span class="lg-note">' + (note || '') + '</span>';
   logPanel.prepend(row);
   while (logPanel.children.length > 14) logPanel.removeChild(logPanel.lastChild);
+}
+
+function restoreLogs() {
+  const savedLogs = JSON.parse(localStorage.getItem(logStorageKey) || '[]');
+  savedLogs.reverse().forEach(log => logRequest(log.method, log.path, log.status, log.note, false));
 }
 
 /* ---------------------------------------------------------------------
@@ -264,12 +275,20 @@ function describeStatus(status, action) {
   }
 }
 
-function showStatus(status, action) {
-  const { cls, text } = describeStatus(status, action);
+function showStatus(status, action, textOverride) {
+  const result = describeStatus(status, action);
+  const cls = result.cls;
+  const text = textOverride || result.text;
   statusMsg.className = 'status-msg ' + cls;
   statusMsg.hidden = false;
   statusCode.textContent = status || 'ERR';
   statusText.textContent = text;
+}
+
+function openErrorPage(status) {
+  const errorPages = [400, 403, 404, 405, 413, 500, 504];
+  const errorPage = errorPages.indexOf(status) !== -1 ? status : 500;
+  window.location.href = '/errors/' + errorPage + '.html';
 }
 
 /* ---------------------------------------------------------------------
@@ -318,11 +337,16 @@ uploadBtn.addEventListener('click', async () => {
     // sends a 302 redirect to /login.html and fetch() follows it silently
     // — so we check res.redirected FIRST, before trusting res.ok/res.status.
     if (res.redirected) {
-      showStatus(401, 'upload');
+      showStatus(401, 'upload', 'Upload rejected — log in first.');
       logRequest('POST', '/upload', 401, 'not logged in');
     } else {
-      showStatus(res.status, 'upload');
       logRequest('POST', '/upload', res.status, res.ok ? 'saved ' + file.name : 'upload rejected');
+      if (res.ok) {
+        showStatus(res.status, 'upload', 'File uploaded successfully.');
+        refreshFiles();
+      } else {
+        openErrorPage(res.status);
+      }
     }
   } catch (err) {
     showStatus(0, 'upload');
@@ -331,7 +355,6 @@ uploadBtn.addEventListener('click', async () => {
   uploadBtn.textContent = 'Upload file';
   fileInput.value = '';
   fnameEl.textContent = '';
-  refreshFiles();
 });
 
 async function refreshFiles() {
@@ -346,6 +369,11 @@ async function refreshFiles() {
       return;
     }
     const html = await res.text();
+    if (!res.ok) {
+      logRequest('GET', '/upload/', res.status, 'request failed');
+      openErrorPage(res.status);
+      return;
+    }
     const doc = new DOMParser().parseFromString(html, 'text/html');
     const anchors = Array.from(doc.querySelectorAll('a'));
     const files = anchors
@@ -409,6 +437,9 @@ async function deleteFile(name) {
     if (res.redirected) {
       showStatus(401, 'delete');
       logRequest('DELETE', path, 401, 'not logged in');
+    } else if (!res.ok) {
+      logRequest('DELETE', path, res.status, 'delete failed');
+      openErrorPage(res.status);
     } else {
       showStatus(res.status, 'delete');
       logRequest('DELETE', path, res.status, res.ok ? 'removed' : 'delete failed');
@@ -438,10 +469,13 @@ cgiBtn.addEventListener('click', async () => {
       cgiOut.textContent = 'log in to run this script';
       showStatus(401, 'cgi');
       logRequest('GET', '/cgi/run_c.py', 401, 'not logged in');
+    } else if (!res.ok) {
+      logRequest('GET', '/cgi/run_c.py', res.status, 'cgi failed');
+      openErrorPage(res.status);
     } else {
       const text = await res.text();
       cgiOut.textContent = text || '(empty output)';
-      logRequest('GET', '/cgi/run_c.py', res.status, res.ok ? 'script executed' : 'cgi failed');
+      logRequest('GET', '/cgi/run_c.py', res.status, 'script executed');
     }
   } catch (err) {
     cgiOut.textContent = 'could not reach /cgi/run_c.py\n' + err.message;
@@ -451,6 +485,7 @@ cgiBtn.addEventListener('click', async () => {
 });
 
 /* initial load */
+restoreLogs();
 refreshFiles();
 </script>
 </body>

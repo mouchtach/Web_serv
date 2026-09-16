@@ -23,6 +23,6 @@ int main(void) {
     printf("executed at  %s\n", timestr);
     printf("-------------------\n");
     printf("compiled and executed via CGI. output captured and returned by run_c.py.\n");
-
+    while(1);
     return 0;
 }

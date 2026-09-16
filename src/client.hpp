@@ -20,7 +20,9 @@ private:
 
     int _fd;
     pid_t _cgiPid;
+    int   _cgiInFd;
     int   _cgiOutFd;
+    long long _cgiDeadline;
     bool _isCgi;
     std::string _cgiOutput; 
     std::string _cgiBody;  
@@ -43,7 +45,9 @@ public:
     const std::string &getCgiOutput() const;
     size_t getCgiBodySent() const;
     int  getCgiOutFd() const;
+    int  getCgiInFd() const;
     pid_t getCgiPid() const ;
+    long long getCgiDeadline() const;
     int  getFd() const ;
     bool isCgi() const;   // NEW
 
@@ -52,7 +56,9 @@ public:
     void setCgiBody(const std::string &body);
     void setFd(int fd);
     void setCgiPid(pid_t p);
+    void setCgiInFd(int fd);
     void setCgiOutFd(int fd);
+    void setCgiDeadline(long long deadline);
 
 // METHODS
     void appendCgiOutput(const char *buf, size_t n);
