@@ -20,7 +20,9 @@ enum FD_type {
 typedef struct FD_info {
     int fd;
     FD_type type;
-    void *obj;
+    // void *obj;
+    int http_client_fd;
+    
 } FD_info;
 
 struct CgiResult {
@@ -39,6 +41,7 @@ private:
     std::map<int , FD_info> _fdInfos;
     std::vector<std::string> _tokens;
     CgiResult _result;
+    
 
     void parseCgiOutput(const std::string &raw);
     void storeCgiToken(Client &client);
@@ -53,9 +56,9 @@ public:
     void setup();
     // process
     void newConnection(int server_fd);
-    void readFromClient(int fd);
-    void pollinprocess(int fd);
-    void polloutprocess(int fd);
+    bool readFromClient(int fd);
+    bool pollinprocess(int fd);
+    bool polloutprocess(int fd);
     void parsing(const std::string &filename);
 
     void cgiReadOutput(int fd); 

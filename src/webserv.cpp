@@ -27,7 +27,9 @@ void WebServ::addinfo(int fd, FD_type type, void *obj) {
 	FD_info info;
 	info.fd = fd;
 	info.type = type;
-	info.obj = obj;
+	// info.obj = obj;
+    if (type == CGI_OUT || type == CGI_IN)
+        info.http_client_fd = static_cast<Client*>(obj)->getFd();
 	_fdInfos[fd] = info;
 }
 
@@ -79,6 +81,7 @@ void WebServ::removeCgiFd(int fd) {
 }
 
 void WebServ::removeClient(int fd) {
+    
 	closeFd(fd);
 	_clients.erase(fd);
 }
@@ -136,56 +139,63 @@ void WebServ::setup() {
 	}
 }
 
-void WebServ::polloutprocess(int fd) {
+bool WebServ::polloutprocess(int fd) {
 
 	FD_type type = getFDType(fd);   // <-- check first, don't just index _clients blindly
 
 	if (type == CGI_IN) {
 		cgiWriteBody(fd);
-		return;
+		return 0;
 	}
 	// non blokiing send
 	Client &client = _clients[fd];
 	Response &response = client.getResponse();
 	const std::string &responseStr = response.getRawResponse();
-	size_t sentBytes = response.getSentBytes();
 	// std::cout << "bytes sent so far: " << sentBytes << std::endl;
-	if (sentBytes >= responseStr.size()) {
-		// std::cout << "Full response sent to client on socket " << fd << std::endl;
-		// std::cout << "Response : " << responseStr << std::endl;
-		removeClient(fd);
-		// exit(0);
-		return;
-	}
+	size_t sentBytes = response.getSentBytes();
 	ssize_t bytesSent = send(fd, responseStr.c_str() + sentBytes, responseStr.size() - sentBytes, 0);
 	if (bytesSent < 0) {
+        
 		std::cerr << "Error sending response to client on socket " << fd << std::endl;
 		removeClient(fd);
-		return;	
+		return 1;	
 	}
+
 	response.addBytesSent(bytesSent);
+	if (sentBytes + bytesSent >= responseStr.size()) {
+        removeClient(fd);
+		return 1;
+	}
+
 	if (response.isFullySent()) {
 		removeClient(fd);
+        return 1;
 	}
+    return 0;
 }
 
-void WebServ::pollinprocess(int fd) {
+bool WebServ::pollinprocess(int fd) {
 	FD_type type = getFDType(fd);
 	if (type == FD_SERVER) {
 		newConnection(fd);
 	} else if (type == FD_CLIENT) {
-		readFromClient(fd);
+		if(readFromClient(fd))
+            return 1;
 	} else if (type == CGI_OUT) {
 		cgiReadOutput(fd);
 	} else {
 		std::cerr << "Unknown FD type for socket " << fd << std::endl;
 	}
+    return 0;
 }
 
 void WebServ::cgiWriteBody(int fd) {
-    Client *client = static_cast<Client*>(_fdInfos[fd].obj);
-    const std::string &body = client->getCgiBody();
-    size_t sent = client->getCgiBodySent();
+    // Client *client = static_cast<Client*>(_fdInfos[fd].obj);
+
+    Client &client = _clients[_fdInfos[fd].http_client_fd];
+
+    const std::string &body = client.getCgiBody();
+    size_t sent = client.getCgiBodySent();
 
     if (sent >= body.size()) {
         closeFd(fd);
@@ -196,23 +206,25 @@ void WebServ::cgiWriteBody(int fd) {
         closeFd(fd);
         return;
     }
-    client->addCgiBodySent(n);
+    client.addCgiBodySent(n);
 }
 
 void WebServ::cgiReadOutput(int fd) {
-    Client *client = static_cast<Client*>(_fdInfos[fd].obj);
+    // Client *client = static_cast<Client*>(_fdInfos[fd].obj);
+    Client &client = _clients[_fdInfos[fd].http_client_fd];
+
     char buf[4096];
     ssize_t n = read(fd, buf, sizeof(buf));
 
     if (n > 0) {
-        client->appendCgiOutput(buf, n);
+        client.appendCgiOutput(buf, n);
         return;
     }
     closeFd(fd);
     int status;
-    waitpid(client->getCgiPid(), &status, 0);
-    finalizeCgiResponse(*client);
-    changePollToWrite(client->getFd());
+    waitpid(client.getCgiPid(), &status, 0);
+    finalizeCgiResponse(client);
+    changePollToWrite(client.getFd());
 }
 
 // webserv.cpp
@@ -301,7 +313,7 @@ void WebServ::finalizeCgiResponse(Client &client) {
     buildCgiResponse(client);
 }
 
-void WebServ::readFromClient(int fd)
+bool WebServ::readFromClient(int fd)
 {
     Client &client = _clients[fd];
     Request &request = client.getRequest();
@@ -310,19 +322,19 @@ void WebServ::readFromClient(int fd)
     if (n == 0)
     {
         removeClient(fd);
-        return;
+        return 1;
     }
     if (n < 0)
     {
         removeClient(fd);
-        return;
+        return 1;
     }
     request.appendData(buffer, n);
     try
     {
         request.parse();
         if (!request.isRequestComplete())
-            return;
+            return 0;
         handleRequest(fd);
     }
     catch (const redirectException &e) { 
@@ -332,6 +344,7 @@ void WebServ::readFromClient(int fd)
         client.getResponse().sendError(e.getStatusCode()); 
         changePollToWrite(fd); 
     }
+    return 0;
 }
 
 #include <sys/stat.h>
@@ -434,7 +447,7 @@ void WebServ::startCgi(int client_fd) {
 void WebServ::handleRequest(int fd) {
     Client &client = _clients[fd];
     client.matchLocation();
-    client.checkAccess();
+    // client.checkAccess();
 
     if (!client.isMethodeAllowed())
         throw HttpException(405, "Method Not Allowed");
@@ -461,9 +474,15 @@ void WebServ::start() {
 		for (size_t i = 0; i < _pollfds.size(); ++i) {
 			try {
 				if (_pollfds[i].revents & POLLIN) 
-					pollinprocess(_pollfds[i].fd);
+                {
+					if(!pollinprocess(_pollfds[i].fd))
+                        i++;
+                }
 				else if (_pollfds[i].revents & POLLOUT) 
-					polloutprocess(_pollfds[i].fd);
+                {
+					if(!polloutprocess(_pollfds[i].fd))
+                        i++;
+                }
 				else if (_pollfds[i].revents & (POLLERR | POLLHUP | POLLNVAL)) {
 					std::cerr << "Error on socket " << _pollfds[i].fd << std::endl;
 					removeClient(_pollfds[i].fd);
