@@ -41,5 +41,5 @@ public:
     const std::string &getCgiScript() const;
 
     bool isCgiEnabled() const;
-    bool resolveCgiScript(std::string &outScriptPath) const;   // CHANGED: no more requestUri param
+    bool resolveCgiScript(std::string &outScriptPath) const; 
 };

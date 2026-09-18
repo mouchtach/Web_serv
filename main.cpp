@@ -21,7 +21,6 @@ int main(int ac, char **av){
         server.loadTokens("cgi/users.json");
         std::cout << "\033[34m[INFO] Setting up sockets...\033[0m" << std::endl;
         server.setup();
-        std::cout << "\033[32m[OK] webserv is ready.\033[0m" << std::endl;
         server.start();
     }
     catch (const std::exception &e) {

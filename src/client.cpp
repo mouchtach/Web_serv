@@ -269,14 +269,11 @@ void Client::matchLocation()
             bestLength = locationPath.length();
         }
     }
-
     if (bestMatch)
         _matchedLocation = *bestMatch;
-
     _isCgi = false;
     if (!_matchedLocation.isCgiEnabled())
         return;
-
     std::string scriptPath;
     if (_matchedLocation.resolveCgiScript(scriptPath))
     {

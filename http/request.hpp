@@ -1,5 +1,4 @@
 #pragma once
-
 #include <string>
 #include "httpexception.hpp"
 #include <map>
@@ -25,56 +24,43 @@ private:
 public:
     Request();
     ~Request();
+
+    // setters
     void setMethod(const std::string &method);
-    void set_max_body_size(size_t max_body_size) { _max_body_size = max_body_size; }
+    void set_max_body_size(size_t max_body_size);
     void setUri(const std::string &uri);
     void setVersion(const std::string &version);
-    void addheader(std::string &key, std::string &value);
     void setContentLength(size_t length);
-    void set_request_complete(bool complete) { _request_complete = complete; }
-    void setToken(const std::string &token) {
-        size_t s = token.find("=");
-        if (s != std::string::npos)
-            _token = token.substr(s + 1);
-        else 
-            _token = "";
-    }
+    void set_request_complete(bool complete);
+    void setToken(const std::string &token);
+    
+    
+    
+    // getters
+    std::string getToken() const ;
+    std::string getContentType() const ;
+    const std::string &getMethod() const ;
+    const std::string &getUri() const ;
+    const std::string &getVersion() const ;
+    const std::string &getBuffer() const ;
+    const std::string &getBody() const ;
+    size_t getContentLength() const ;
+    size_t get_max_body_size() const ;
 
-    std::string getToken() const { return _token; }
-    bool is_content_length_done() const { return _body.size() >= _content_length; }
+
+
+    void addheader(std::string &key, std::string &value);
+    bool is_content_length_done() const ;
     bool parseHeader();
     void parseBody();
     void validateHeaders();
     void parse();
     bool hasBody() const;
-    bool isRequestComplete() const { return _request_complete; }
-
-    std::string getContentType() const {
-        std::map<std::string, std::string>::const_iterator it = _headers.find("content-type");
-        if (it != _headers.end()) {
-            return it->second;
-        }
-        return "";
-    }
-
-    // getters
-    const std::string &getMethod() const { return _method; }
-    const std::string &getUri() const { return _uri; }
-    const std::string &getVersion() const { return _version; }
-    const std::map<std::string, std::string> &getHeaders() const { return _headers; }
-    const std::string &getBody() const { return _body; }
-    const std::string &getBuffer() const { return _buffer; }
-    size_t getContentLength() const { return _content_length; }  
-    size_t get_max_body_size() const { return _max_body_size; }
-
-
-
+    bool isRequestComplete() const ;
     bool is_header_complete() const ;
     bool is_request_complete() const ;
-    bool hasContentLength() const { return has_content_length; }
+    bool hasContentLength() const ;
     void appendData(const char *data, size_t length);
     void parseRequestLine(const std::string &line);
     void parseHeaders(const std::string &headers);
-    // void parse();
-// 
 };

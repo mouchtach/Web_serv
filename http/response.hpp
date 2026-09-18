@@ -1,4 +1,5 @@
 #pragma once
+#include "../src/static_utils.hpp"
 #include <string>
 #include <map>
 #include <sstream>
@@ -7,8 +8,9 @@
 
 class Response {
 private:
-    std::string _version;
+
     int         _statusCode;
+    std::string _version;
     std::string _statusMessage;
     std::string _body;
     std::map<std::string, std::string> _headers;
@@ -20,35 +22,22 @@ public:
     Response();
     ~Response();
 
-    void setVersion(const std::string &version) { _version = version; }
-    void setStatusCode(int code, const std::string &message) {
-        _statusCode = code;
-        _statusMessage = message;
-    }
-    void setHeader(const std::string &key, const std::string &value) {
-        _headers[key] = value;
-    }
-    void setBody(const std::string &body) { _body = body; }
-    void setErrorPages(const std::map<int, std::string> &errorPages) { _errorPages = errorPages; }   // <-- new
+    void setVersion(const std::string &version);
+    void setStatusCode(int code, const std::string &message);
+    void setHeader(const std::string &key, const std::string &value);
+    void setBody(const std::string &body);
+    void setErrorPages(const std::map<int, std::string> &errorPages);
+    void setSentBytes(size_t n);
 
+    
+    int getStatusCode() const ;
+    size_t getSentBytes() const ;
+    const std::string &getRawResponse() const ;
+    std::string getCurrentDate() const;
+    
     void buildResponse();
-
-    const std::string &getRawResponse() const { return _rawResponse; }
-    int getStatusCode() const { return _statusCode; }
-
-    void setSentBytes(size_t n) { _sentBytes = n; }
-    size_t getSentBytes() const { return _sentBytes; }
-    void addBytesSent(size_t n) { _sentBytes += n; }
-    bool isFullySent() const { return _sentBytes >= _rawResponse.size(); }
-    void resetSendState() { _sentBytes = 0; }
-
-    std::string getCurrentDate() const {
-        char buffer[100];
-        std::time_t now = std::time(NULL);
-        std::tm *gmt = std::gmtime(&now);
-        std::strftime(buffer, sizeof(buffer), "%a, %d %b %Y %H:%M:%S GMT", gmt);
-        return std::string(buffer);
-    }
-
+    void addBytesSent(size_t n);
+    bool isFullySent() const ;
+    void resetSendState();
     void sendError(int code, const std::string &customBody = "");
 };

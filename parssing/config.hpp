@@ -7,6 +7,7 @@
 class Location;
 
 class Config{
+    
 private:
     int                     _port;
     std::string             _serverName;
@@ -34,7 +35,7 @@ public:
     void addErrorPage(const std::string &codeStr, const std::string &path);
     void addLocation(const Location &location);
     void setMethods(const std::vector<std::string> &methods);
-    // void addMethod(const std::string &method);
+
     // Getters
     int getPort() const;
     const std::string &getServerName() const;

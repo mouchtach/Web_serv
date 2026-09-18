@@ -6,12 +6,15 @@ Request::Request() : _header_complete(false), _request_complete(false), has_cont
 
 Request::~Request() {}
 
+/// Setters
 
 void Request::setMethod(const std::string &method) {
     if (method != "GET" && method != "POST" && method != "DELETE")
         throw HttpException(400, "bad request");
     _method = method;
 }
+
+void Request::set_max_body_size(size_t max_body_size) {_max_body_size = max_body_size;}
 
 void Request::setUri(const std::string &uri) {
 
@@ -28,51 +31,70 @@ void Request::setVersion(const std::string &version) {
     _version = version;
 }
 
-bool Request::is_header_complete() const {
-    return _header_complete;
-}
-bool Request::is_request_complete() const {
-    return _request_complete;
+void Request::setContentLength(size_t length) {_content_length = length;}
+
+void Request::set_request_complete(bool complete) {_request_complete = complete;}
+
+void Request::setToken(const std::string &token) {
+
+    size_t s = token.find("=");
+    if (s != std::string::npos)
+        _token = token.substr(s + 1);
+    else 
+        _token = "";
 }
 
-void Request::appendData(const char *data, size_t length) {
-    _buffer.append(data, length);
+
+// Getters
+
+std::string Request::getToken() const { return _token; }
+
+std::string Request::getContentType() const {
+        std::map<std::string, std::string>::const_iterator it = _headers.find("content-type");
+        if (it != _headers.end()) {
+            return it->second;
+        }
+        return "";
 }
+
+const std::string &Request::getMethod() const { return _method; }
+
+const std::string &Request::getUri() const { return _uri; }
+
+const std::string &Request::getVersion() const { return _version; }
+
+const std::string &Request::getBuffer() const { return _buffer; }
+
+const std::string &Request::getBody() const { return _body; }
+
+size_t Request::getContentLength() const { return _content_length; }  
+
+size_t Request::get_max_body_size() const { return _max_body_size; }
+
+
+bool Request::is_header_complete() const {return _header_complete;}
+bool Request::is_request_complete() const {return _request_complete;}
+
+void Request::appendData(const char *data, size_t length) {_buffer.append(data, length);}
 
 void Request::addheader(std::string &key, std::string &value) {
-    // convet to lower case
     toLowerCase(key);
-    // toLowerCase(value);
-
     if (key == "cookie") {
         setToken(value);
     }
     if (key == "content-length") {
-        // check if value is a number
         for (size_t i = 0; i < value.size(); ++i)
             if (!isdigit(value[i]))
                 throw HttpException(400, "bad request");    
         setContentLength(std::strtoul(value.c_str(), NULL, 10));
         has_content_length = true;
     }
-
     if (key.find(' ') != std::string::npos || key.empty() || value.empty())
         throw HttpException(400, "bad request");
-    // if (value.find(':') != std::string::npos || value.find(':') != std::string::npos)
-    //     throw HttpException(400, "bad request");
     if (_headers.find(key) != _headers.end())
         throw HttpException(400, "bad request");
     _headers[key] = value;
-
 }
-
-
-void Request::setContentLength(size_t length) {
-    _content_length = length;
-}
-
-
-#include <iostream>
 
 void Request::parseBody()
 {
@@ -80,7 +102,6 @@ void Request::parseBody()
     _buffer.clear();
     if (!_body.empty() && _content_length == 0)
         throw HttpException(400, "bad request");
-        
     if (_body.size() >= _content_length)
     {
         _body.resize(_content_length);
@@ -88,29 +109,26 @@ void Request::parseBody()
     }
 }
 
+bool Request::is_content_length_done() const { return _body.size() >= _content_length; }
+
+bool Request::isRequestComplete() const { return _request_complete; }
+
+bool Request::hasContentLength() const { return has_content_length; }
+
 bool Request::parseHeader()
 {
     size_t headerEnd = _buffer.find("\r\n\r\n");
-
     if (headerEnd == std::string::npos)
         return false;
-
     std::string header = _buffer.substr(0, headerEnd);
-
     size_t firstLine = header.find("\r\n");
-
     if (firstLine == std::string::npos)
         throw HttpException(400, "Bad Request");
-
     parseRequestLine(header.substr(0, firstLine));
     parseHeaders(header.substr(firstLine + 2));
-
     validateHeaders();
-
     _buffer.erase(0, headerEnd + 4);
-
     _header_complete = true;
-
     return true;
 }
 
@@ -121,18 +139,11 @@ void Request::validateHeaders()
         std::cerr << "POST request without Content-Length header" << std::endl;
         throw HttpException(400, "Bad Request");
     }
-    // condition if max body is  == 0  allow all 
-
-      
     if (has_content_length && _content_length > _max_body_size && _max_body_size != 0)
         throw HttpException(413, "Payload Too Large");
-
 }
 
-bool Request::hasBody() const
-{
-    return has_content_length;
-}
+bool Request::hasBody() const {return has_content_length;}
 
 void Request::parse() {
     
@@ -167,8 +178,6 @@ void Request::parseRequestLine(const std::string &line) {
 }
 
 void Request::parseHeaders(const std::string &headers) {
-    // handle duplicate headers key
-
     size_t start = 0;
     while (start < headers.size()) {
         size_t end = headers.find("\r\n", start);
@@ -177,13 +186,10 @@ void Request::parseHeaders(const std::string &headers) {
         std::string line = headers.substr(start, end - start);
         size_t colonPos = line.find(':');
         if (colonPos != std::string::npos) {
-            // throw exception if missing_colon_in_header
-
             std::string key = line.substr(0, colonPos);
             std::string value = line.substr(colonPos + 1);
             if (key == "Cookie" || key == "cookie")
                 setToken(value);
-            // check key if ready to use
             value.erase(0, value.find_first_not_of(" \t"));
             value.erase(value.find_last_not_of(" \t") + 1);
             addheader(key, value);
@@ -191,6 +197,6 @@ void Request::parseHeaders(const std::string &headers) {
         else {
             throw HttpException(400, "bad request");
         }
-        start = end + 2; // Move past "\r\n"
+        start = end + 2;
     }
 }

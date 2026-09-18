@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <stdexcept>
 #include <cstdlib>
+#include <vector>
 
 std::string intToStr(int num) {
     std::ostringstream ss;

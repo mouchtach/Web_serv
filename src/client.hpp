@@ -49,7 +49,7 @@ public:
     pid_t getCgiPid() const ;
     long long getCgiDeadline() const;
     int  getFd() const ;
-    bool isCgi() const;   // NEW
+    bool isCgi() const;
 
 // Setters
 
